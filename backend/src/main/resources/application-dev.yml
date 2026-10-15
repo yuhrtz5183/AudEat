@@ -1,0 +1,17 @@
+# Local development: file-based H2 in PostgreSQL mode, so no database server is needed.
+server:
+  # Only this machine can reach the dev API, not other devices on the network.
+  address: 127.0.0.1
+
+spring:
+  datasource:
+    url: jdbc:h2:file:./data/audeat-dev;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password: ""
+
+audeat:
+  jwt:
+    # Development only. Production must set AUDEAT_JWT_SECRET.
+    secret: dev-only-jwt-secret-do-not-use-in-production
+  cors:
+    allowed-origins: http://localhost:5173

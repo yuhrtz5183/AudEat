@@ -1,0 +1,20 @@
+# Production defaults. Every secret comes from the environment; startup fails if one is missing.
+# For local development run with the "dev" profile (see README.md).
+spring:
+  application:
+    name: audeat-backend
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME:}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+audeat:
+  jwt:
+    secret: ${AUDEAT_JWT_SECRET}
+    ttl: 12h
+  cors:
+    allowed-origins: ${AUDEAT_CORS_ORIGINS:}
