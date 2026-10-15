@@ -23,8 +23,8 @@ export function validateAuth(mode, values) {
     if (!values.role) {
       errors.role = 'Choose inspector or store owner.'
     }
-    if (values.role === 'owner' && !values.storeName.trim()) {
-      errors.storeName = 'Enter the store name.'
+    if (values.role === 'owner' && !values.storeId) {
+      errors.storeId = 'Choose your store.'
     }
     if (!values.confirm) {
       errors.confirm = 'Confirm your password.'
@@ -43,8 +43,8 @@ export function focusFirstError(errors) {
       ? 'email'
       : errors.role
         ? 'role-inspector'
-        : errors.storeName
-          ? 'storeName'
+        : errors.storeId
+          ? 'storeId'
           : errors.password
             ? 'password'
             : errors.confirm

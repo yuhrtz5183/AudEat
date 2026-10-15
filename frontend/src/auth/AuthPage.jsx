@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+import { useLocation, useMatch } from 'react-router'
 import AuthForm from './AuthForm.jsx'
 
 const TITLES = {
@@ -6,8 +7,12 @@ const TITLES = {
   signup: 'Create Account',
 }
 
+// Rendered as a layout for /login and /register so the form (and the typed
+// email) survives switching between the two.
 export default function AuthPage() {
-  const [mode, setMode] = useState('signin')
+  const { state } = useLocation()
+  // Matches like the router does (any case, optional trailing slash).
+  const mode = useMatch('/register') ? 'signup' : 'signin'
 
   useEffect(() => {
     document.title = TITLES[mode]
@@ -15,7 +20,7 @@ export default function AuthPage() {
 
   return (
     <main className="auth-main">
-      <AuthForm mode={mode} onMode={setMode} />
+      <AuthForm mode={mode} notice={state?.registered ? 'Account created. Sign in to continue.' : null} />
     </main>
   )
 }

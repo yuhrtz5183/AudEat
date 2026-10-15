@@ -1,4 +1,9 @@
 import { useState } from 'react'
+import { Link, useNavigate } from 'react-router'
+import { register } from '../api/auth.js'
+import { ApiError } from '../api/client.js'
+import { useAuth } from './AuthContext.jsx'
+import { useStores } from './useStores.js'
 import { focusFirstError, validateAuth } from './validate.js'
 
 const EMPTY = {
@@ -7,18 +12,37 @@ const EMPTY = {
   password: '',
   confirm: '',
   role: '',
-  storeName: '',
+  storeId: '',
   remember: false,
 }
 
 const COPY = {
   signin: {
+    title: 'Welcome back',
     submit: 'Continue',
+    pending: 'Signing in…',
   },
   signup: {
     title: 'Join now!',
     submit: 'Create',
+    pending: 'Creating account…',
   },
+}
+
+const PATHS = {
+  signin: '/login',
+  signup: '/register',
+}
+
+// Maps a failed registration to field errors, or null when it is not field-specific.
+function registrationErrors(error) {
+  if (!(error instanceof ApiError)) return null
+  if (error.status === 409) return { email: 'This email is already registered.' }
+  if (error.status === 400 && error.body?.errors) {
+    const known = Object.entries(error.body.errors).filter(([field]) => Object.hasOwn(EMPTY, field))
+    return known.length > 0 ? Object.fromEntries(known) : null
+  }
+  return null
 }
 
 function Eye({ off = false }) {
@@ -53,8 +77,18 @@ function TextField({ id, label, type = 'text', value, onChange, error, autoCompl
   )
 }
 
-function PasswordField({ id, label, value, onChange, error, autoComplete, hint }) {
+function PasswordField({ id, label, value, onChange, error, autoComplete, hint, warnCapsLock = false }) {
   const [visible, setVisible] = useState(false)
+  const [capsLock, setCapsLock] = useState(false)
+  const showCapsLock = warnCapsLock && capsLock
+  const describedBy = [
+    error ? `${id}-error` : hint ? `${id}-hint` : null,
+    showCapsLock ? `${id}-caps` : null,
+  ].filter(Boolean)
+
+  function trackCapsLock(event) {
+    setCapsLock(event.getModifierState('CapsLock'))
+  }
 
   return (
     <div className={error ? 'field invalid' : 'field'}>
@@ -68,7 +102,10 @@ function PasswordField({ id, label, value, onChange, error, autoComplete, hint }
           onChange={(event) => onChange(event.target.value)}
           autoComplete={autoComplete}
           aria-invalid={error ? 'true' : 'false'}
-          aria-describedby={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+          aria-describedby={describedBy.length > 0 ? describedBy.join(' ') : undefined}
+          onKeyDown={warnCapsLock ? trackCapsLock : undefined}
+          onKeyUp={warnCapsLock ? trackCapsLock : undefined}
+          onBlur={warnCapsLock ? () => setCapsLock(false) : undefined}
         />
         <button
           type="button"
@@ -82,50 +119,143 @@ function PasswordField({ id, label, value, onChange, error, autoComplete, hint }
       </div>
       {hint && !error ? <p id={`${id}-hint`} className="hint">{hint}</p> : null}
       {error ? <p id={`${id}-error`} className="error">{error}</p> : null}
+      {showCapsLock ? <p id={`${id}-caps`} className="hint caps">Caps Lock is on</p> : null}
     </div>
   )
 }
 
-export default function AuthForm({ mode, onMode }) {
+function StoreField({ value, onChange, error, stores }) {
+  const failed = stores.status === 'error'
+  const empty = stores.status === 'ready' && stores.items.length === 0
+  const hint = !error && (failed || empty)
+
+  return (
+    <div className={error ? 'field invalid' : 'field'}>
+      <label htmlFor="storeId">Your store</label>
+      <select
+        id="storeId"
+        name="storeId"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-invalid={error ? 'true' : 'false'}
+        aria-describedby={error ? 'storeId-error' : hint ? 'storeId-hint' : undefined}
+        aria-busy={stores.status === 'loading'}
+      >
+        <option value="">{stores.status === 'loading' ? 'Loading stores…' : 'Select your store'}</option>
+        {stores.items.map((store) => (
+          <option key={store.id} value={store.id}>
+            {store.address ? `${store.name} · ${store.address}` : store.name}
+          </option>
+        ))}
+      </select>
+      {hint ? (
+        <p id="storeId-hint" className="hint">
+          {failed ? (
+            <>
+              Couldn't load stores.{' '}
+              <button type="button" className="text-button" onClick={stores.retry}>
+                Try again
+              </button>
+            </>
+          ) : (
+            'No stores are registered yet.'
+          )}
+        </p>
+      ) : null}
+      {error ? <p id="storeId-error" className="error">{error}</p> : null}
+    </div>
+  )
+}
+
+export default function AuthForm({ mode, notice }) {
+  const navigate = useNavigate()
+  const { signIn } = useAuth()
   const [values, setValues] = useState(EMPTY)
   const [errors, setErrors] = useState({})
+  const [serverErrors, setServerErrors] = useState({})
+  const [formError, setFormError] = useState(null)
   const [submitted, setSubmitted] = useState(false)
+  const [pending, setPending] = useState(false)
+  const [shownMode, setShownMode] = useState(mode)
+  const stores = useStores(mode === 'signup' && values.role === 'owner')
   const copy = COPY[mode]
+  const shown = { ...serverErrors, ...errors }
 
-  function changeMode(next) {
+  // The mode follows the URL, so reset here rather than in the switch handler
+  // to also cover back/forward navigation.
+  if (mode !== shownMode) {
+    setShownMode(mode)
     setSubmitted(false)
     setErrors({})
+    setServerErrors({})
+    setFormError(null)
     setValues((current) => ({ ...current, password: '', confirm: '' }))
-    onMode(next)
   }
 
   function update(field, value) {
     const next = { ...values, [field]: value }
     setValues(next)
     if (submitted) setErrors(validateAuth(mode, next))
+    if (serverErrors[field]) {
+      setServerErrors(({ [field]: _cleared, ...rest }) => rest)
+    }
   }
 
-  function onSubmit(event) {
+  async function onSubmit(event) {
     event.preventDefault()
+    if (pending) return
+
     const nextErrors = validateAuth(mode, values)
     setErrors(nextErrors)
+    setServerErrors({})
+    setFormError(null)
     setSubmitted(true)
 
     if (Object.keys(nextErrors).length > 0) {
       focusFirstError(nextErrors)
+      return
+    }
+
+    setPending(true)
+    try {
+      if (mode === 'signup') {
+        await register(values)
+        setValues({ ...EMPTY, email: values.email.trim() })
+        navigate(PATHS.signin, { state: { registered: true } })
+      } else {
+        // Storing the session lets GuestOnly send the user to their role's home page.
+        await signIn({ email: values.email, password: values.password }, values.remember)
+      }
+    } catch (error) {
+      const fieldErrors = mode === 'signup' ? registrationErrors(error) : null
+      if (fieldErrors) {
+        setServerErrors(fieldErrors)
+        focusFirstError(fieldErrors)
+      } else if (mode === 'signin' && error instanceof ApiError && error.status === 401) {
+        // AC 13.2: keep the email, clear the password and put the cursor back in it.
+        setFormError('credentials')
+        setValues((current) => ({ ...current, password: '' }))
+        document.getElementById('password')?.focus()
+      } else {
+        setFormError('unknown')
+      }
+    } finally {
+      setPending(false)
     }
   }
 
   return (
     <div className="auth-panel">
       <div className="switch" role="group" aria-label="Account">
-        <button type="button" aria-pressed={mode === 'signin'} onClick={() => changeMode('signin')}>
+        <button type="button" aria-pressed={mode === 'signin'} onClick={() => navigate(PATHS.signin)}>
           Sign in
         </button>
-        <button type="button" aria-pressed={mode === 'signup'} onClick={() => changeMode('signup')}>
+        <button type="button" aria-pressed={mode === 'signup'} onClick={() => navigate(PATHS.signup)}>
           Create account
         </button>
       </div>
+
+      {notice && !formError ? <p className="notice" role="status">{notice}</p> : null}
 
       <h1>{copy.title}</h1>
 
@@ -136,7 +266,7 @@ export default function AuthForm({ mode, onMode }) {
             label="Full name"
             value={values.name}
             onChange={(value) => update('name', value)}
-            error={errors.name}
+            error={shown.name}
             autoComplete="name"
           />
         ) : null}
@@ -148,14 +278,14 @@ export default function AuthForm({ mode, onMode }) {
           inputMode="email"
           value={values.email}
           onChange={(value) => update('email', value)}
-          error={errors.email}
+          error={shown.email}
           autoComplete="email"
         />
 
         {mode === 'signup' ? (
           <fieldset
-            className={errors.role ? 'roles invalid' : 'roles'}
-            aria-describedby={errors.role ? 'role-error' : undefined}
+            className={shown.role ? 'roles invalid' : 'roles'}
+            aria-describedby={shown.role ? 'role-error' : undefined}
           >
             <legend>Account type</legend>
             <div className="role-grid">
@@ -167,8 +297,8 @@ export default function AuthForm({ mode, onMode }) {
                   value="inspector"
                   checked={values.role === 'inspector'}
                   onChange={() => update('role', 'inspector')}
-                  aria-invalid={errors.role ? 'true' : 'false'}
-                  aria-describedby={errors.role ? 'role-error' : undefined}
+                  aria-invalid={shown.role ? 'true' : 'false'}
+                  aria-describedby={shown.role ? 'role-error' : undefined}
                 />
                 <span className="role-title">Inspector</span>
                 <span className="role-copy">Review any store and its full inspection history.</span>
@@ -181,26 +311,24 @@ export default function AuthForm({ mode, onMode }) {
                   value="owner"
                   checked={values.role === 'owner'}
                   onChange={() => update('role', 'owner')}
-                  aria-invalid={errors.role ? 'true' : 'false'}
-                  aria-describedby={errors.role ? 'role-error' : undefined}
+                  aria-invalid={shown.role ? 'true' : 'false'}
+                  aria-describedby={shown.role ? 'role-error' : undefined}
                 />
                 <span className="role-title">Store owner</span>
                 <span className="role-copy">See tickets and history for your store only.</span>
               </label>
             </div>
-            {errors.role ? <p id="role-error" className="error role-error">{errors.role}</p> : null}
+            {shown.role ? <p id="role-error" className="error role-error">{shown.role}</p> : null}
           </fieldset>
         ) : null}
 
         {mode === 'signup' && values.role === 'owner' ? (
           <div className="reveal">
-            <TextField
-              id="storeName"
-              label="Store name"
-              value={values.storeName}
-              onChange={(value) => update('storeName', value)}
-              error={errors.storeName}
-              autoComplete="organization"
+            <StoreField
+              value={values.storeId}
+              onChange={(value) => update('storeId', value)}
+              error={shown.storeId}
+              stores={stores}
             />
           </div>
         ) : null}
@@ -210,9 +338,10 @@ export default function AuthForm({ mode, onMode }) {
           label="Password"
           value={values.password}
           onChange={(value) => update('password', value)}
-          error={errors.password}
+          error={shown.password}
           autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
           hint={mode === 'signup' ? 'At least 8 characters.' : undefined}
+          warnCapsLock={mode === 'signin'}
         />
 
         {mode === 'signup' ? (
@@ -221,7 +350,7 @@ export default function AuthForm({ mode, onMode }) {
             label="Confirm password"
             value={values.confirm}
             onChange={(value) => update('confirm', value)}
-            error={errors.confirm}
+            error={shown.confirm}
             autoComplete="new-password"
           />
         ) : null}
@@ -239,8 +368,24 @@ export default function AuthForm({ mode, onMode }) {
           </div>
         ) : null}
 
-        <button type="submit" className="submit">
-          {copy.submit}
+        {formError ? (
+          <div className="alert" role="alert">
+            {formError === 'credentials' ? (
+              <>
+                <p>Invalid email or password.</p>
+                <p>
+                  Check your password and try again, or{' '}
+                  <Link to={PATHS.signup}>create an account</Link> if you're new to AudEat.
+                </p>
+              </>
+            ) : (
+              <p>Something went wrong. Please try again.</p>
+            )}
+          </div>
+        ) : null}
+
+        <button type="submit" className="submit" disabled={pending} aria-busy={pending}>
+          {pending ? copy.pending : copy.submit}
         </button>
       </form>
     </div>
