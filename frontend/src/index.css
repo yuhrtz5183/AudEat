@@ -37,7 +37,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -100,7 +101,8 @@ input {
   font-weight: 600;
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   height: 48px;
   padding: 0 14px;
@@ -110,7 +112,15 @@ input {
   color: var(--ink);
 }
 
-.field input:focus {
+.field select {
+  appearance: none;
+  padding-right: 40px;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%235e574e' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") right 14px center / 16px no-repeat;
+  text-overflow: ellipsis;
+}
+
+.field input:focus,
+.field select:focus {
   outline: none;
   border-color: var(--moss);
   box-shadow: 0 0 0 3px rgba(47, 107, 79, 0.16);
@@ -121,7 +131,8 @@ input {
   box-shadow: 0 0 0 1000px #fff inset;
 }
 
-.invalid input {
+.invalid input,
+.invalid select {
   border-color: var(--stamp);
   background: #fff8f6;
 }
@@ -162,6 +173,11 @@ input {
 
 .hint {
   color: var(--ink-soft);
+}
+
+.hint.caps {
+  color: var(--stamp);
+  font-weight: 600;
 }
 
 .error {
@@ -300,10 +316,138 @@ input {
   transform: translateY(1px);
 }
 
+.submit:disabled {
+  background: var(--forest-mid);
+  cursor: progress;
+  transform: none;
+}
+
+.notice,
+.alert {
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 0.92rem;
+}
+
+.notice {
+  border: 1px solid #c7dccf;
+  background: #eef5f0;
+  color: var(--forest);
+}
+
+.alert {
+  margin: 4px 0 16px;
+  border: 1px solid #e7c4bc;
+  background: #fff8f6;
+  color: var(--danger);
+}
+
+.alert p {
+  margin: 0;
+}
+
+.alert p + p {
+  margin-top: 4px;
+  color: var(--ink-soft);
+}
+
+.alert a,
+.text-button {
+  color: var(--forest);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.home {
+  min-height: 100vh;
+}
+
+.home-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.home-main {
+  width: min(100%, 880px);
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.home-main h1 {
+  margin: 0 0 8px;
+  font-family: var(--serif);
+  font-size: 2.4rem;
+  font-weight: 560;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.lede {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.store-list {
+  display: grid;
+  gap: 10px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.store-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.store-name {
+  font-weight: 600;
+}
+
+.store-address {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
 .switch button:focus-visible,
 .ghost-icon:focus-visible,
 .submit:focus-visible,
-.check input:focus-visible {
+.check input:focus-visible,
+.text-button:focus-visible,
+.alert a:focus-visible {
   outline: 2px solid var(--moss);
   outline-offset: 2px;
 }
