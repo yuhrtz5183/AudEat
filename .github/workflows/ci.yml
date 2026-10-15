@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main, login_signup_jason]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend (lint, unit tests, build, e2e on mock API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-mock-results
+          path: frontend/test-results
+          if-no-files-found: ignore
+
+  backend:
+    name: Backend (JUnit on PostgreSQL 18)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      # -Ppostgres runs the tests against a PostgreSQL 18 container (Testcontainers).
+      - run: ./mvnw -B verify -Ppostgres
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: surefire-reports
+          path: backend/target/surefire-reports
+          if-no-files-found: ignore
+
+  e2e-full-stack:
+    name: End-to-end (React + Spring Boot + PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [frontend, backend]
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: audeat
+          POSTGRES_USER: audeat
+          POSTGRES_PASSWORD: audeat
+        # Same host port as backend/compose.yaml, which the "postgres" Spring profile expects.
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U audeat -d audeat"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Start the API
+        working-directory: backend
+        run: |
+          nohup ./mvnw -B -q spring-boot:run \
+            -Dspring-boot.run.profiles=dev,postgres \
+            -Dspring-boot.run.arguments=--audeat.cors.allowed-origins=http://localhost:5179 \
+            > api.log 2>&1 &
+          for _ in $(seq 1 90); do
+            curl -fs -o /dev/null http://127.0.0.1:8080/api/stores && exit 0
+            sleep 2
+          done
+          cat api.log
+          exit 1
+      - working-directory: frontend
+        run: npm ci
+      - working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run Playwright against the API
+        working-directory: frontend
+        env:
+          E2E_API_URL: http://localhost:8080
+        run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: full-stack-results
+          path: |
+            backend/api.log
+            frontend/test-results
+          if-no-files-found: ignore
