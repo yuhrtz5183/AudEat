@@ -2,7 +2,14 @@ import { Route, Routes } from 'react-router'
 import { AuthProvider } from './auth/AuthContext.jsx'
 import AuthPage from './auth/AuthPage.jsx'
 import { Fallback, GuestOnly, RequireRole } from './auth/guards.jsx'
-import { InspectorHome, OwnerHome } from './home/Home.jsx'
+import {
+  InspectionHistory,
+  InspectionWithoutStore,
+  InspectorHome,
+  OwnerHome,
+  StartInspection,
+  StoreDetails,
+} from './home/Home.jsx'
 
 export default function App() {
   return (
@@ -17,6 +24,10 @@ export default function App() {
         </Route>
         <Route element={<RequireRole role="inspector" />}>
           <Route path="/stores" element={<InspectorHome />} />
+          <Route path="/stores/:storeId" element={<StoreDetails />} />
+          <Route path="/stores/:storeId/inspections/new" element={<StartInspection />} />
+          <Route path="/stores/:storeId/inspections" element={<InspectionHistory />} />
+          <Route path="/inspections/new" element={<InspectionWithoutStore />} />
         </Route>
         <Route element={<RequireRole role="owner" />}>
           <Route path="/my-store" element={<OwnerHome />} />
