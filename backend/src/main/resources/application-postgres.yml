@@ -1,0 +1,6 @@
+# The compose.yaml database. Use together with dev: -Dspring-boot.run.profiles=dev,postgres
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/audeat
+    username: audeat
+    password: audeat
