@@ -457,6 +457,18 @@ select {
   margin-top: 24px;
 }
 
+.ticket-count {
+  margin: 20px 0 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.attention {
+  margin: 8px 0 0;
+  color: var(--stamp);
+  font-weight: 600;
+}
+
 .store-actions {
   display: flex;
   flex-wrap: wrap;
