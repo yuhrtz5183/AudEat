@@ -11,6 +11,18 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      # Safety net against lazy N+1 queries in the list assemblers.
+      hibernate.default_batch_fetch_size: 50
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 26MB
+
+server:
+  tomcat:
+    # Reads past an oversized upload so the client gets the 413 JSON body, not a connection reset.
+    max-swallow-size: 30MB
 
 audeat:
   jwt:
