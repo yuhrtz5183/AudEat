@@ -67,7 +67,7 @@ store id: they always use the signed-in owner's store.
 | `POST /api/auth/login` | Public | Log in (US 13) | 200 `{token, user}`; 401 `Invalid email or password.` | done |
 | `GET /api/auth/me` | Bearer token | The signed-in user | 200 user; 401 | done |
 | `GET /api/photos/{id}` | Any role | Photo bytes (AC 2.2, 4.2, 5.1) | 200 image with `Cache-Control: private, max-age=86400`; 404 `Photo not found.` (an owner asking for another store's photo, or one from a draft inspection) | done |
-| `GET /api/my-store` | Owner | Store name and counts (US 15) | 200 `MyStoreResponse` | planned |
+| `GET /api/my-store` | Owner | Store name, address and ticket counts (US 15) | 200 `MyStoreResponse`; 403 for an inspector | done |
 | `GET /api/my-store/tickets` | Owner | The store's tickets, open by nearest deadline, then approved (US 4, 10) | 200 `[TicketSummaryResponse]` | planned |
 | `GET /api/my-store/tickets/{ticketId}` | Owner | One ticket (AC 4.2) | 200 `TicketDetailResponse`; 404 `Ticket not found.` | planned |
 | `POST /api/my-store/tickets/{ticketId}/submissions` | Owner | Send evidence (US 5); multipart `comment` + 1-5 `files` | 201 `TicketDetailResponse`; 400 `errors.files` `Evidence is required.`; 404; 409; 413 | planned |
@@ -95,7 +95,7 @@ Dates are `YYYY-MM-DD`, timestamps ISO-8601 instants and enums lower-case. Ticke
 `open`, `awaiting_review`, `rejected`, `follow_up_scheduled` or `approved`; `overdue`,
 `daysRemaining` and `daysOverdue` are computed on the server against today in `AUDEAT_TIME_ZONE`,
 and a ticket due today is not overdue. The response records live in `inspection/`, `remediation/`
-and (planned) `owner/`:
+and `owner/`:
 
 | Record | Fields |
 |---|---|
@@ -104,4 +104,4 @@ and (planned) `owner/`:
 | `ResultResponse` | `id, requirementId, requirement, compliant (true \| false \| null), comment, photoIds, resolved (null unless flagged), ticket: {id, status, overdue, deadline, daysRemaining, daysOverdue, requiredRemediation} \| null` |
 | `TicketSummaryResponse` | `id, status, overdue, deadline, daysRemaining, daysOverdue, requiredRemediation, issue: {resultId, requirement, comment, resolved}, storeId, storeName, inspectionId, inspectionDate, followUpDate, followUpInspectionId` |
 | `TicketDetailResponse` | every `TicketSummaryResponse` field with `issue.photoIds` added, plus `createdAt, approvedAt, submissions: [{id, comment, submittedAt, evidencePhotoIds, decision (null \| approved \| rejected \| follow_up), reviewComment, reviewedAt}], followUps: [{inspectionId, inspectionDate, status, compliant, comment}]` |
-| `MyStoreResponse` (planned) | `id, name, address, openTicketCount, rejectedCount` |
+| `MyStoreResponse` | `id, name, address, openTicketCount` (tickets not yet approved), `rejectedCount` (tickets sent back for further action) |
