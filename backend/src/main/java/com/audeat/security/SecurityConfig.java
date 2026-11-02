@@ -27,13 +27,15 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Stateless bearer-token security. Registration, login and the store list are public; every
- * other request needs a valid token (AC 13.3).
+ * other request needs a valid token (AC 13.3). Owner routes and inspector routes are split by
+ * role, and the wrong role gets a JSON 403 before any data is read (AC 9.2, 15.2).
  */
 @Configuration
 public class SecurityConfig {
@@ -52,10 +54,20 @@ public class SecurityConfig {
                 requests
                     .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login")
                     .permitAll()
+                    // Must stay before /api/stores/**, which is inspector-only.
                     .requestMatchers(HttpMethod.GET, "/api/stores")
                     .permitAll()
                     .requestMatchers("/error")
                     .permitAll()
+                    .requestMatchers("/api/my-store/**")
+                    .hasRole("owner")
+                    .requestMatchers(
+                        "/api/stores/**",
+                        "/api/inspections/**",
+                        "/api/results/**",
+                        "/api/tickets/**")
+                    .hasRole("inspector")
+                    // Any signed-in user, e.g. /api/auth/me and /api/photos/**.
                     .anyRequest()
                     .authenticated())
         .oauth2ResourceServer(
@@ -63,7 +75,11 @@ public class SecurityConfig {
                 oauth
                     .jwt(jwt -> jwt.jwtAuthenticationConverter(roleConverter()))
                     .authenticationEntryPoint(unauthorized))
-        .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(unauthorized));
+        .exceptionHandling(
+            exceptions ->
+                exceptions
+                    .authenticationEntryPoint(unauthorized)
+                    .accessDeniedHandler(jsonForbidden()));
     return http.build();
   }
 
@@ -113,7 +129,7 @@ public class SecurityConfig {
     return source;
   }
 
-  /** Exposes the token's role claim as ROLE_inspector / ROLE_owner for future role checks. */
+  /** Exposes the token's role claim as ROLE_inspector / ROLE_owner for the role rules above. */
   private static JwtAuthenticationConverter roleConverter() {
     JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
     authorities.setAuthoritiesClaimName(TokenService.ROLE_CLAIM);
@@ -128,6 +144,14 @@ public class SecurityConfig {
       response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
       response.setContentType(MediaType.APPLICATION_JSON_VALUE);
       response.getWriter().write("{\"message\":\"Authentication required.\"}");
+    };
+  }
+
+  private static AccessDeniedHandler jsonForbidden() {
+    return (request, response, exception) -> {
+      response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+      response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+      response.getWriter().write("{\"message\":\"You are not authorized to view this page.\"}");
     };
   }
 }

@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.audeat.inspection.InspectionRepository;
 import com.audeat.store.StoreRepository;
 import com.audeat.user.UserAccountRepository;
 import com.jayway.jsonpath.JsonPath;
@@ -44,10 +45,12 @@ class LoginApiTest {
   @Autowired private MockMvc mvc;
   @Autowired private UserAccountRepository users;
   @Autowired private StoreRepository stores;
+  @Autowired private InspectionRepository inspections;
   @Autowired private JwtEncoder jwtEncoder;
 
   @BeforeEach
   void registerUsers() throws Exception {
+    inspections.deleteAllInBatch();
     users.deleteAll();
     long harbor =
         stores.findAll().stream()
@@ -161,6 +164,7 @@ class LoginApiTest {
   @DisplayName("AC 13.3: a token for a deleted account is no longer accepted")
   void rejectsTokenForDeletedUser() throws Exception {
     String token = token(login("ada@example.com", "correct-horse"));
+    inspections.deleteAllInBatch();
     users.deleteAll();
 
     mvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
