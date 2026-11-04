@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { fetchMyTicket } from '../api/owner.js'
 import Photo from '../components/Photo.jsx'
 import { HomeShell } from '../home/Home.jsx'
-import { ACTION_REQUIRED, rejectionReason } from '../remediation/labels.js'
+import { ACTION_REQUIRED, rejectionReason, ticketStatusLabel } from '../remediation/labels.js'
 import { formatDate, formatInstantDate } from './dates.js'
+import EvidenceForm, { acceptsEvidence } from './EvidenceForm.jsx'
 import { TicketDeadline, TicketStatus } from './TicketStatus.jsx'
 
 const DECISION_LABEL = {
@@ -17,6 +18,11 @@ const DECISION_LABEL = {
 function useMyTicket(ticketId) {
   const [state, setState] = useState({ status: 'loading', ticket: null })
   const [attempt, setAttempt] = useState(0)
+  const current = useRef(ticketId)
+
+  useEffect(() => {
+    current.current = ticketId
+  }, [ticketId])
 
   useEffect(() => {
     // The router decodes %2F, so a crafted id like "..%2F..%2Fmy-store" would point the
@@ -40,7 +46,27 @@ function useMyTicket(ticketId) {
     }
   }, [ticketId, attempt])
 
-  return { ...state, retry: () => setAttempt((current) => current + 1) }
+  return {
+    ...state,
+    retry: () => setAttempt((current) => current + 1),
+    // A write (sending evidence) answers with the updated ticket.
+    replace: (ticket) => setState({ status: 'ready', ticket }),
+    // Fetches the ticket again but keeps the current one on screen meanwhile, so the page
+    // (and the focused button) stays put. Resolves to whether the fresh ticket is shown.
+    refresh: async () => {
+      const id = ticketId
+      try {
+        const ticket = await fetchMyTicket(id)
+        if (current.current !== id) return false
+        setState({ status: 'ready', ticket })
+        return true
+      } catch {
+        // Let the normal load say "not found" or offer to try again.
+        if (current.current === id) setAttempt((count) => count + 1)
+        return false
+      }
+    },
+  }
 }
 
 function Photos({ ids, label, empty }) {
@@ -106,7 +132,7 @@ function FollowUp({ followUp }) {
   )
 }
 
-function TicketDetails({ ticket }) {
+function TicketDetails({ ticket, onEvidenceSent, onReload }) {
   const reason = ticket.status === 'rejected' ? rejectionReason(ticket) : null
   // Scheduled follow-ups show as the follow-up date; only completed ones have a result.
   const followUps = ticket.followUps.filter((followUp) => followUp.status === 'submitted')
@@ -195,15 +221,48 @@ function TicketDetails({ ticket }) {
           </ul>
         </section>
       ) : null}
+
+      {acceptsEvidence(ticket) ? (
+        <EvidenceForm ticket={ticket} onSent={onEvidenceSent} onReload={onReload} />
+      ) : null}
     </>
   )
 }
 
 // One of the store's tickets: the issue, the inspector's comments and photos, the status
-// and deadline (AC 4.2). Read-only; sending evidence is US 5.
+// and deadline (AC 4.2), and while the ticket waits for evidence, the form to send it (US 5).
 export default function MyTicket() {
   const { ticketId } = useParams()
-  const { status, ticket, retry } = useMyTicket(ticketId)
+  const { status, ticket, retry, replace, refresh } = useMyTicket(ticketId)
+  // The confirmation belongs to the ticket it was sent for.
+  const [sent, setSent] = useState(null)
+  const sentRef = useRef(null)
+  // { ticketId } after the form's "Reload the ticket"; a new object each time, so every
+  // reload moves focus.
+  const [reloaded, setReloaded] = useState(null)
+  const reloadedRef = useRef(null)
+
+  useEffect(() => {
+    // The form, and the button that had focus, are gone; keep the keyboard on the page.
+    if (sent !== null) sentRef.current?.focus()
+  }, [sent])
+
+  useEffect(() => {
+    // Same after a reload: the form is usually gone, so say what the ticket's status is now.
+    if (reloaded !== null) reloadedRef.current?.focus()
+  }, [reloaded])
+
+  function onEvidenceSent(updated) {
+    replace(updated)
+    setReloaded(null)
+    setSent(ticketId)
+  }
+
+  async function onReload() {
+    if (!(await refresh())) return
+    setSent(null)
+    setReloaded({ ticketId })
+  }
 
   return (
     <HomeShell title={status === 'notFound' ? 'Ticket not found' : 'Remediation ticket'}>
@@ -217,7 +276,23 @@ export default function MyTicket() {
           </button>
         </p>
       ) : null}
-      {ticket ? <TicketDetails ticket={ticket} /> : null}
+      {ticket ? (
+        <>
+          <div role="status">
+            {sent === ticketId ? (
+              <p className="notice evidence-sent" tabIndex={-1} ref={sentRef}>
+                Evidence sent. The inspector will review it.
+              </p>
+            ) : null}
+            {reloaded?.ticketId === ticketId ? (
+              <p className="notice ticket-reloaded" tabIndex={-1} ref={reloadedRef}>
+                Ticket reloaded. Its status is {ticketStatusLabel(ticket)}.
+              </p>
+            ) : null}
+          </div>
+          <TicketDetails ticket={ticket} onEvidenceSent={onEvidenceSent} onReload={onReload} />
+        </>
+      ) : null}
       <Link className="text-button back-link" to="/my-store/tickets">Back to my tickets</Link>
     </HomeShell>
   )
