@@ -535,3 +535,173 @@ select {
     transform: none;
   }
 }
+
+/* Owner remediation tickets (US 4, 10) */
+.ticket-list {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ticket-card {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.ticket-card > p {
+  margin: 0 0 8px;
+}
+
+.ticket-title {
+  display: inline-block;
+  margin-bottom: 10px;
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 3px;
+}
+
+.ticket-title:hover {
+  color: var(--forest);
+  text-decoration-color: var(--forest);
+}
+
+.ticket-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+
+.ticket-facts > div {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* Comments are free text; a long URL or code must wrap instead of widening the page. */
+.ticket-card,
+.ticket-facts dd,
+.ticket-card > p,
+.action-required {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-facts dt {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.ticket-facts dd {
+  margin: 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--paper-deep);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.overdue-badge {
+  background: var(--stamp);
+  color: #fff;
+}
+
+.status-rejected {
+  background: #fff8f6;
+  color: var(--danger);
+}
+
+.status-approved {
+  background: #eef5f0;
+  color: var(--forest);
+}
+
+.days-left {
+  margin-left: 8px;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.days-left::before {
+  content: "· ";
+}
+
+.overdue-text {
+  color: var(--stamp);
+  font-weight: 600;
+}
+
+.resolved-tickets {
+  margin-top: 32px;
+}
+
+.resolved-tickets h2,
+.ticket-section h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.4rem;
+  font-weight: 560;
+}
+
+.resolved-tickets .ticket-card {
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.ticket-section {
+  margin-top: 28px;
+}
+
+.ticket-section > .ticket-facts,
+.ticket-section > .lede {
+  margin-top: 12px;
+}
+
+.ticket-issue {
+  margin: 10px 0 0;
+  font-weight: 600;
+}
+
+.submission-date {
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.photo-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.photo-list img {
+  display: block;
+  width: 160px;
+  height: 120px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.ticket-title:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .ticket-facts > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+}
