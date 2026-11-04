@@ -68,8 +68,8 @@ store id: they always use the signed-in owner's store.
 | `GET /api/auth/me` | Bearer token | The signed-in user | 200 user; 401 | done |
 | `GET /api/photos/{id}` | Any role | Photo bytes (AC 2.2, 4.2, 5.1) | 200 image with `Cache-Control: private, max-age=86400`; 404 `Photo not found.` (an owner asking for another store's photo, or one from a draft inspection) | done |
 | `GET /api/my-store` | Owner | Store name, address and ticket counts (US 15) | 200 `MyStoreResponse`; 403 for an inspector | done |
-| `GET /api/my-store/tickets` | Owner | The store's tickets, open by nearest deadline, then approved (US 4, 10) | 200 `[TicketSummaryResponse]` | planned |
-| `GET /api/my-store/tickets/{ticketId}` | Owner | One ticket (AC 4.2) | 200 `TicketDetailResponse`; 404 `Ticket not found.` | planned |
+| `GET /api/my-store/tickets` | Owner | The store's tickets, open by nearest deadline (overdue first), then approved (US 4, 10) | 200 `[TicketSummaryResponse]`; 403 for an inspector | done |
+| `GET /api/my-store/tickets/{ticketId}` | Owner | One ticket with its issue photos, submissions and follow-ups (AC 4.2) | 200 `TicketDetailResponse`; 404 `Ticket not found.` (missing, non-numeric or another store's id) | done |
 | `POST /api/my-store/tickets/{ticketId}/submissions` | Owner | Send evidence (US 5); multipart `comment` + 1-5 `files` | 201 `TicketDetailResponse`; 400 `errors.files` `Evidence is required.`; 404; 409; 413 | planned |
 | `GET /api/my-store/inspections` | Owner | The store's inspection history (US 9) | 200 `[InspectionSummaryResponse]` | planned |
 | `POST /api/stores/{storeId}/inspections` | Inspector | Start, or resume, the caller's draft (AC 1.1) | 201 or 200 `InspectionDetailResponse`; 404 `Store not found.` | planned |
