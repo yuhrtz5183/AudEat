@@ -14,7 +14,7 @@ import {
   submitEvidence,
   submitInspection,
 } from './data.js'
-import { MOCK_TOKENS, MOCK_USERS } from './seed.js'
+import { MOCK_TOKENS, MOCK_USERS, PNG_1x1 } from './seed.js'
 
 const TODAY = '2026-11-02'
 
@@ -421,5 +421,216 @@ describe('S1 photos', () => {
     })
     expect(get('inspector', `/api/photos/${photo.id}`).status).toBe(200)
     expect(get('owner', `/api/photos/${photo.id}`).status).toBe(404)
+  })
+})
+
+describe('O4 evidence (US 5)', () => {
+  const png = (name = 'fix.png') => new File([PNG_1x1], name, { type: 'image/png' })
+
+  function evidence(comment, files) {
+    const form = new FormData()
+    if (comment !== undefined) form.append('comment', comment)
+    for (const file of files) form.append('files', file)
+    return form
+  }
+
+  function setupO4() {
+    const { backend, get } = setup()
+    const post = (who, ticketId, body) =>
+      backend.handle('POST', `/api/my-store/tickets/${ticketId}/submissions`, body, {
+        authorization: `Bearer ${MOCK_TOKENS[who]}`,
+      })
+    const ticket = (start) => byComment(get('owner', '/api/my-store/tickets').body, start)
+    const saved = () => [backend.db.remediationSubmissions.length, backend.db.photos.length]
+    return { backend, get, post, ticket, saved }
+  }
+
+  it('AC 5.1: saves the submission and its photos, and the ticket awaits review', async () => {
+    const { get, post, ticket } = setupO4()
+    const b = ticket('No paper towels')
+
+    const response = post('owner', b.id, evidence('  Restocked the sink.  ', [png('a.png'), png('b.png')]))
+
+    expect(response.status).toBe(201)
+    expect(response.body).toMatchObject({ id: b.id, status: 'awaiting_review', approvedAt: null })
+    expect(response.body.submissions).toEqual([
+      {
+        id: expect.any(Number),
+        comment: 'Restocked the sink.',
+        submittedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/),
+        evidencePhotoIds: [expect.any(Number), expect.any(Number)],
+        decision: null,
+        reviewComment: null,
+        reviewedAt: null,
+      },
+    ])
+    expect(get('owner', `/api/my-store/tickets/${b.id}`).body).toEqual(response.body)
+
+    // Available to the inspector: in the review queue, in the ticket and as a photo.
+    expect(get('inspector', '/api/tickets?status=awaiting_review').body.map((row) => row.issue.comment)).toEqual([
+      'No paper towels at the prep sink.',
+      'Cutting boards stained and not sanitized.',
+    ])
+    expect(get('inspector', `/api/tickets/${b.id}`).body.submissions).toEqual(response.body.submissions)
+    const photo = get('inspector', `/api/photos/${response.body.submissions[0].evidencePhotoIds[0]}`)
+    expect(photo.status).toBe(200)
+    expect(photo.blob.type).toBe('image/png')
+    expect(new Uint8Array(await photo.blob.arrayBuffer())).toEqual(PNG_1x1)
+    expect(get('owner', `/api/photos/${response.body.submissions[0].evidencePhotoIds[1]}`).status).toBe(200)
+    expect(get('otherOwner', `/api/photos/${response.body.submissions[0].evidencePhotoIds[0]}`).status).toBe(404)
+  })
+
+  it('AC 5.1: accepts new evidence for a rejected ticket, after the earlier submission', () => {
+    const { get, post, ticket } = setupO4()
+    const e = ticket('Unlabeled')
+
+    const response = post('owner', e.id, evidence('Close-ups of the labels.', [png()]))
+
+    expect(response.status).toBe(201)
+    expect(response.body.status).toBe('awaiting_review')
+    expect(response.body.submissions.map((row) => [row.comment, row.decision])).toEqual([
+      ['Labeled every container in the walk-in.', 'rejected'],
+      ['Close-ups of the labels.', null],
+    ])
+    expect(get('owner', '/api/my-store').body.rejectedCount).toBe(0)
+  })
+
+  it('AC 5.2: refuses a submission without evidence and saves nothing', () => {
+    const { post, ticket, saved } = setupO4()
+    const b = ticket('No paper towels')
+    const before = saved()
+
+    expect(post('owner', b.id, evidence('Restocked the sink.', []))).toEqual({
+      status: 400,
+      body: { errors: { files: 'Evidence is required.' } },
+    })
+    // An untouched file input sends one empty part, which does not count.
+    expect(post('owner', b.id, evidence('Restocked the sink.', [new File([], '')]))).toEqual({
+      status: 400,
+      body: { errors: { files: 'Evidence is required.' } },
+    })
+    expect(post('owner', b.id, {})).toEqual({
+      status: 400,
+      body: { errors: { comment: 'Describe how you fixed the issue.', files: 'Evidence is required.' } },
+    })
+    expect(saved()).toEqual(before)
+    expect(ticket('No paper towels').status).toBe('open')
+  })
+
+  it('AC 5.2: checks the comment, the number of files and their type', () => {
+    const { post, ticket, saved } = setupO4()
+    const b = ticket('No paper towels')
+    const before = saved()
+    const errors = (body) => post('owner', b.id, body)
+
+    expect(errors(evidence('   ', [png()]))).toEqual({
+      status: 400,
+      body: { errors: { comment: 'Describe how you fixed the issue.' } },
+    })
+    expect(errors(evidence('x'.repeat(1001), [png()])).body).toEqual({
+      errors: { comment: 'Use 1000 characters or fewer.' },
+    })
+    expect(errors(evidence('Fixed.', [1, 2, 3, 4, 5, 6].map(() => png()))).body).toEqual({
+      errors: { files: 'Upload at most 5 files.' },
+    })
+    const gif = new File(['GIF89a'], 'fix.gif', { type: 'image/gif' })
+    expect(errors(evidence('Fixed.', [png(), gif])).body).toEqual({
+      errors: { files: 'Evidence must be a JPEG, PNG or WebP image.' },
+    })
+    // A text part named files is not a file: Spring binds no files at all.
+    expect(errors(evidence('Fixed.', ['not a file'])).body).toEqual({
+      errors: { files: 'Evidence is required.' },
+    })
+    expect(saved()).toEqual(before)
+    expect(ticket('No paper towels').status).toBe('open')
+  })
+
+  it('returns 413 for a file over 5 MB, before anything else', () => {
+    const { post, ticket, saved } = setupO4()
+    const before = saved()
+    const big = new File([PNG_1x1, new Uint8Array(5 * 1024 * 1024)], 'big.png', { type: 'image/png' })
+    const tooLarge = { status: 413, body: { message: 'Each file must be 5 MB or smaller.' } }
+
+    expect(post('owner', ticket('No paper towels').id, evidence('Fixed.', [big]))).toEqual(tooLarge)
+    expect(post('owner', 999, evidence('', [big]))).toEqual(tooLarge)
+    expect(saved()).toEqual(before)
+  })
+
+  it('returns 413 for a request over 26 MB, a text part over 5 MB or more than 50 parts', () => {
+    const { post, ticket, saved } = setupO4()
+    const b = ticket('No paper towels').id
+    const before = saved()
+    const tooLarge = { status: 413, body: { message: 'Each file must be 5 MB or smaller.' } }
+    const almost5MB = () => new File([PNG_1x1, new Uint8Array(4.5 * 1024 * 1024)], 'fix.png', { type: 'image/png' })
+
+    expect(post('owner', b, evidence('Fixed.', [1, 2, 3, 4, 5, 6].map(almost5MB)))).toEqual(tooLarge)
+    expect(post('owner', b, evidence('x'.repeat(5 * 1024 * 1024 + 1), [png()]))).toEqual(tooLarge)
+    // The comment and 49 files are 50 parts: too many files, but parsed.
+    expect(post('owner', b, evidence('Fixed.', Array.from({ length: 49 }, () => png()))).body).toEqual({
+      errors: { files: 'Upload at most 5 files.' },
+    })
+    expect(post('owner', b, evidence('Fixed.', Array.from({ length: 50 }, () => png())))).toEqual(tooLarge)
+    expect(saved()).toEqual(before)
+    expect(ticket('No paper towels').status).toBe('open')
+  })
+
+  it("reads the comment as Spring binds it: Java's strip(), repeated parts joined by commas", () => {
+    const { post, ticket } = setupO4()
+    const b = ticket('No paper towels').id
+    const gif = new File(['GIF89a'], 'fix.gif', { type: 'image/gif' })
+    const errors = (comment) => {
+      const form = evidence(undefined, [gif])
+      for (const part of [comment].flat()) form.append('comment', part)
+      return post('owner', b, form).body.errors
+    }
+
+    // Java's strip() removes control separators but keeps a no-break space.
+    expect(errors('\u001f\t ').comment).toBe('Describe how you fixed the issue.')
+    expect(errors('\u00a0').comment).toBeUndefined()
+    expect(errors(['x'.repeat(500), 'x'.repeat(500)]).comment).toBe('Use 1000 characters or fewer.')
+    expect(errors('x'.repeat(1000)).comment).toBeUndefined()
+
+    const response = post('owner', b, evidence('\u00a0Fixed. ', [png()]))
+    expect(response.status).toBe(201)
+    expect(response.body.submissions[0].comment).toBe('\u00a0Fixed.')
+  })
+
+  it("returns 404 for a missing ticket or another store's", () => {
+    const { get, post, saved } = setupO4()
+    const before = saved()
+    const notFoundBody = { status: 404, body: { message: 'Ticket not found.' } }
+    const g = byComment(get('otherOwner', '/api/my-store/tickets').body, 'Dumpster')
+
+    expect(post('owner', g.id, evidence('Fixed.', [png()]))).toEqual(notFoundBody)
+    expect(post('owner', 999, evidence('Fixed.', [png()]))).toEqual(notFoundBody)
+    expect(saved()).toEqual(before)
+    expect(get('otherOwner', `/api/my-store/tickets/${g.id}`).body.status).toBe('open')
+  })
+
+  it('returns 409, before the field errors, when the ticket is not waiting for evidence', () => {
+    const { post, ticket, saved } = setupO4()
+    const before = saved()
+    const refused = { status: 409, body: { message: 'This ticket is not waiting for evidence.' } }
+
+    for (const start of ['Cutting boards', 'Raw chicken', 'Mouse droppings']) {
+      const row = ticket(start)
+      expect(post('owner', row.id, evidence('Fixed.', [png()]))).toEqual(refused)
+      expect(post('owner', row.id, evidence('', []))).toEqual(refused)
+      expect(ticket(start).status).toBe(row.status)
+    }
+    expect(saved()).toEqual(before)
+  })
+
+  it('accepts a second submission only after a review, and only for owners', () => {
+    const { get, post, ticket } = setupO4()
+    const b = ticket('No paper towels')
+
+    expect(post('owner', b.id, evidence('Fixed.', [png()])).status).toBe(201)
+    expect(post('owner', b.id, evidence('Fixed again.', [png()])).status).toBe(409)
+    expect(post('inspector', b.id, evidence('Fixed.', [png()]))).toEqual({
+      status: 403,
+      body: { message: 'You are not authorized to view this page.' },
+    })
+    expect(get('owner', `/api/my-store/tickets/${b.id}`).body.submissions).toHaveLength(1)
   })
 })
