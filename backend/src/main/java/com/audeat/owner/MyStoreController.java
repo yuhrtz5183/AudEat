@@ -1,6 +1,7 @@
 package com.audeat.owner;
 
 import com.audeat.common.ApiExceptionHandler.ErrorResponse;
+import com.audeat.inspection.InspectionSummaryResponse;
 import com.audeat.remediation.TicketDetailResponse;
 import com.audeat.remediation.TicketSummaryResponse;
 import com.audeat.security.CurrentUser;
@@ -43,6 +44,11 @@ public class MyStoreController {
   @GetMapping("/tickets")
   public List<TicketSummaryResponse> myTickets(@AuthenticationPrincipal Jwt jwt) {
     return owner.myTickets(currentUser.ownerStoreId(jwt));
+  }
+
+  @GetMapping("/inspections")
+  public List<InspectionSummaryResponse> myInspections(@AuthenticationPrincipal Jwt jwt) {
+    return owner.myInspections(currentUser.ownerStoreId(jwt));
   }
 
   @GetMapping("/tickets/{ticketId}")

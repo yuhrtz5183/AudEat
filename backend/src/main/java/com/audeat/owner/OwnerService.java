@@ -2,6 +2,8 @@ package com.audeat.owner;
 
 import com.audeat.auth.AuthExceptions.InvalidFields;
 import com.audeat.common.ApiExceptions.NotFound;
+import com.audeat.inspection.InspectionRepository;
+import com.audeat.inspection.InspectionSummaryResponse;
 import com.audeat.photo.ImageFiles;
 import com.audeat.photo.Photo;
 import com.audeat.photo.PhotoRepository;
@@ -51,6 +53,7 @@ public class OwnerService {
   private final RemediationSubmissionRepository submissions;
   private final PhotoRepository photos;
   private final TicketViews ticketViews;
+  private final InspectionRepository inspections;
   private final Clock clock;
 
   public OwnerService(
@@ -59,12 +62,14 @@ public class OwnerService {
       RemediationSubmissionRepository submissions,
       PhotoRepository photos,
       TicketViews ticketViews,
+      InspectionRepository inspections,
       Clock clock) {
     this.stores = stores;
     this.tickets = tickets;
     this.submissions = submissions;
     this.photos = photos;
     this.ticketViews = ticketViews;
+    this.inspections = inspections;
     this.clock = clock;
   }
 
@@ -82,6 +87,14 @@ public class OwnerService {
   /** AC 4.1, 10.1, 10.2: open tickets by nearest deadline (overdue ones first), then approved. */
   public List<TicketSummaryResponse> myTickets(long storeId) {
     return ticketViews.summaries(tickets.findForStore(storeId));
+  }
+
+  /**
+   * AC 9.1: the store's submitted inspections, newest first, with their violation counts. Drafts
+   * (including scheduled follow-ups) are left out. There is no store parameter to change (AC 9.2).
+   */
+  public List<InspectionSummaryResponse> myInspections(long storeId) {
+    return inspections.findHistory(storeId);
   }
 
   /** AC 4.2. Another store's ticket gets the same 404 as a missing one. */
