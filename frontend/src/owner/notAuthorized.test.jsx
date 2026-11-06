@@ -6,6 +6,8 @@ describe('owners cannot open inspector pages (AC 9.2, 15.2)', () => {
   it.each([
     ['AC 15.2', "the inspector's store list", '/stores', '/api/stores'],
     ['AC 9.2', "another store's inspection history", '/stores/3/inspections', '/api/stores/3/inspections'],
+    // Inspection 7 is Corner Bakery's latest submitted inspection in the mock seed.
+    ['AC 9.2', "another store's inspection", '/inspections/7', '/api/inspections/7'],
   ])('%s: an owner opening %s is returned to their store with a not-authorized message', async (ac, page, path, api) => {
     const { fetch } = stubApi()
     signInAs('owner')

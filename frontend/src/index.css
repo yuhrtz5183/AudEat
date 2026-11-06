@@ -763,3 +763,9 @@ select {
   outline: 2px solid var(--moss);
   outline-offset: 2px;
 }
+
+/* Owner inspection history (US 9) */
+.history-badge {
+  margin-left: 10px;
+  font-weight: 500;
+}
