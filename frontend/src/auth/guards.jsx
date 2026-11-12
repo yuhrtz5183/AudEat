@@ -2,11 +2,14 @@ import { Navigate, Outlet } from 'react-router'
 import { useAuth } from './AuthContext.jsx'
 import { ROLE_HOME } from './roles.js'
 
-// Signed-out users go to login; users of another role go to their own home.
+// Signed-out users go to login; users of another role go to their own home,
+// which may say they are not authorized (AC 9.2, 15.2).
 export function RequireRole({ role }) {
   const { user } = useAuth()
   if (!user) return <Navigate to="/login" replace />
-  if (user.role !== role) return <Navigate to={ROLE_HOME[user.role]} replace />
+  if (user.role !== role) {
+    return <Navigate to={ROLE_HOME[user.role]} replace state={{ notAuthorized: true }} />
+  }
   return <Outlet />
 }
 

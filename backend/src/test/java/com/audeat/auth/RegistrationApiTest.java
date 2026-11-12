@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.audeat.inspection.InspectionRepository;
 import com.audeat.store.Store;
 import com.audeat.store.StoreRepository;
 import com.audeat.user.Role;
@@ -32,10 +33,12 @@ class RegistrationApiTest {
   @Autowired private MockMvc mvc;
   @Autowired private UserAccountRepository users;
   @Autowired private StoreRepository stores;
+  @Autowired private InspectionRepository inspections;
   @Autowired private PasswordEncoder passwordEncoder;
 
   @BeforeEach
   void clearUsers() {
+    inspections.deleteAllInBatch();
     users.deleteAll();
   }
 

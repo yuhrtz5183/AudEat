@@ -1,0 +1,425 @@
+import { describe, expect, it } from 'vitest'
+import { createMockBackend } from './backend.js'
+import {
+  approve,
+  daysOverdue,
+  daysRemaining,
+  isEditableBy,
+  isOverdue,
+  recordFollowUpResult,
+  reject,
+  review,
+  scheduleFollowUp,
+  startRegular,
+  submitEvidence,
+  submitInspection,
+} from './data.js'
+import { MOCK_TOKENS, MOCK_USERS } from './seed.js'
+
+const TODAY = '2026-11-02'
+
+function setup() {
+  const backend = createMockBackend({ today: TODAY })
+  const get = (who, url) =>
+    backend.handle('GET', url, undefined, who ? { authorization: `Bearer ${MOCK_TOKENS[who]}` } : {})
+  return { backend, get }
+}
+
+function allTickets(get) {
+  return ['open', 'awaiting_review', 'rejected', 'follow_up_scheduled', 'approved']
+    .flatMap((status) => get('inspector', `/api/tickets?status=${status}`).body)
+}
+
+const byComment = (tickets, start) => tickets.find((ticket) => ticket.issue.comment.startsWith(start))
+
+describe('derived ticket values', () => {
+  const ticket = (deadline, status = 'open') => ({ deadline, status })
+
+  it('a deadline of today is not overdue (AC 11.3)', () => {
+    expect(isOverdue(ticket(TODAY), TODAY)).toBe(false)
+    expect(daysRemaining(ticket(TODAY), TODAY)).toBe(0)
+    expect(daysOverdue(ticket(TODAY), TODAY)).toBe(0)
+  })
+
+  it('a deadline before today is overdue', () => {
+    expect(isOverdue(ticket('2026-11-01'), TODAY)).toBe(true)
+    expect(daysRemaining(ticket('2026-10-31'), TODAY)).toBe(-2)
+    expect(daysOverdue(ticket('2026-10-31'), TODAY)).toBe(2)
+  })
+
+  it('an approved ticket is never overdue (AC 11.2)', () => {
+    expect(isOverdue(ticket('2026-09-01', 'approved'), TODAY)).toBe(false)
+    expect(daysOverdue(ticket('2026-09-01', 'approved'), TODAY)).toBe(0)
+  })
+})
+
+describe('transitions', () => {
+  it('moves a ticket through evidence, rejection and approval', () => {
+    const ticket = { status: 'open', approvedAt: null }
+    submitEvidence(ticket)
+    expect(ticket.status).toBe('awaiting_review')
+    reject(ticket)
+    expect(ticket.status).toBe('rejected')
+    submitEvidence(ticket)
+    approve(ticket, '2026-11-02T15:00:00Z')
+    expect(ticket).toEqual({ status: 'approved', approvedAt: '2026-11-02T15:00:00Z' })
+    expect(() => submitEvidence(ticket)).toThrow('This ticket is not waiting for evidence.')
+  })
+
+  it('refuses approve and reject on a follow_up_scheduled ticket', () => {
+    const ticket = { status: 'follow_up_scheduled', approvedAt: null }
+    const refused = 'This ticket has no evidence waiting for review.'
+    expect(() => approve(ticket, 'now')).toThrow(refused)
+    expect(() => reject(ticket)).toThrow(refused)
+    expect(() => scheduleFollowUp(ticket)).toThrow(refused)
+    recordFollowUpResult(ticket, false, 'now')
+    expect(ticket.status).toBe('rejected')
+  })
+
+  it('refuses recordFollowUpResult on an awaiting_review ticket', () => {
+    const ticket = { status: 'awaiting_review', approvedAt: null }
+    expect(() => recordFollowUpResult(ticket, true, 'now')).toThrow(
+      'This ticket is not waiting for a follow-up inspection.',
+    )
+    scheduleFollowUp(ticket)
+    recordFollowUpResult(ticket, true, 'now')
+    expect(ticket).toEqual({ status: 'approved', approvedAt: 'now' })
+  })
+
+  it('reviews a submission only once', () => {
+    const submission = { decision: null, reviewComment: null, reviewedAt: null }
+    review(submission, 'rejected', 'Blurry photo.', 'now')
+    expect(submission).toEqual({ decision: 'rejected', reviewComment: 'Blurry photo.', reviewedAt: 'now' })
+    expect(() => review(submission, 'approved', null, 'now')).toThrow('This submission has already been reviewed.')
+  })
+
+  it('submits a follow-up as the caller, re-dated to today, and refuses a second submit', () => {
+    const followUp = { status: 'draft', followUpOfResultId: 9, inspectorId: 1, inspectionDate: '2026-11-04' }
+    expect(isEditableBy(followUp, { id: 2 })).toBe(true)
+    submitInspection(followUp, { id: 2 }, TODAY, 'now')
+    expect(followUp).toEqual({
+      status: 'submitted',
+      followUpOfResultId: 9,
+      inspectorId: 2,
+      inspectionDate: TODAY,
+      submittedAt: 'now',
+    })
+    expect(() => submitInspection(followUp, { id: 2 }, TODAY, 'now')).toThrow(
+      'This inspection has already been submitted.',
+    )
+  })
+
+  it('keeps the inspector of a regular inspection and lets only them edit its draft', () => {
+    const draft = { status: 'draft', followUpOfResultId: null, inspectorId: 1, inspectionDate: '2026-11-01' }
+    expect(isEditableBy(draft, { id: 1 })).toBe(true)
+    expect(isEditableBy(draft, { id: 2 })).toBe(false)
+    submitInspection(draft, { id: 2 }, TODAY, 'now')
+    expect(draft).toMatchObject({ inspectorId: 1, inspectionDate: '2026-11-01' })
+  })
+})
+
+describe('seeded owner data (DESIGN §5)', () => {
+  it('O1: counts open and rejected tickets', () => {
+    const { get } = setup()
+    expect(get('owner', '/api/my-store')).toEqual({
+      status: 200,
+      body: { id: 1, name: 'Blue Plate Diner', address: '412 Main St', openTicketCount: 5, rejectedCount: 1 },
+    })
+    expect(get('otherOwner', '/api/my-store').body).toMatchObject({ openTicketCount: 1, rejectedCount: 0 })
+  })
+
+  it('O2: lists tickets A, B, E, C, F, then the approved D', () => {
+    const { get } = setup()
+    const tickets = get('owner', '/api/my-store/tickets').body
+    expect(tickets.map((ticket) => [ticket.issue.comment, ticket.status, ticket.deadline])).toEqual([
+      ['Walk-in cooler read 48°F.', 'open', '2026-10-31'],
+      ['No paper towels at the prep sink.', 'open', '2026-11-02'],
+      ['Unlabeled containers in the walk-in.', 'rejected', '2026-11-05'],
+      ['Cutting boards stained and not sanitized.', 'awaiting_review', '2026-11-07'],
+      ['Raw chicken stored above salad greens.', 'follow_up_scheduled', '2026-11-09'],
+      ['Mouse droppings behind the dry-storage shelf.', 'approved', '2026-09-23'],
+    ])
+  })
+
+  it('only ticket A is overdue, and ticket F links to the I4 follow-up draft', () => {
+    const { get } = setup()
+    const tickets = allTickets(get)
+    expect(tickets).toHaveLength(8)
+    expect(tickets.filter((ticket) => ticket.overdue).map((ticket) => ticket.issue.comment)).toEqual([
+      'Walk-in cooler read 48°F.',
+    ])
+    expect(byComment(tickets, 'Walk-in')).toMatchObject({ daysRemaining: -2, daysOverdue: 2 })
+    expect(byComment(tickets, 'No paper towels')).toMatchObject({ overdue: false, daysRemaining: 0, daysOverdue: 0 })
+
+    const f = byComment(tickets, 'Raw chicken')
+    expect(f.followUpDate).toBe('2026-11-04')
+    const followUp = get('inspector', `/api/inspections/${f.followUpInspectionId}`).body
+    expect(followUp).toMatchObject({
+      inspectionDate: '2026-11-04',
+      status: 'draft',
+      followUpOfTicketId: f.id,
+      violationCount: 0,
+    })
+    expect(followUp.results).toHaveLength(1)
+    expect(followUp.results[0]).toMatchObject({ requirementId: 2, compliant: null, resolved: null, ticket: null })
+    expect(tickets.filter((ticket) => ticket.followUpInspectionId !== null)).toEqual([f])
+  })
+
+  it('O3: returns the §4 ticket detail, with the rejecting review comment', () => {
+    const { get } = setup()
+    const e = byComment(get('owner', '/api/my-store/tickets').body, 'Unlabeled')
+    const detail = get('owner', `/api/my-store/tickets/${e.id}`).body
+    expect(detail).toEqual({
+      ...e,
+      issue: { ...e.issue, photoIds: [] },
+      createdAt: '2026-10-23T15:00:00Z',
+      approvedAt: null,
+      submissions: [
+        {
+          id: expect.any(Number),
+          comment: 'Labeled every container in the walk-in.',
+          submittedAt: '2026-10-29T15:00:00Z',
+          evidencePhotoIds: [expect.any(Number)],
+          decision: 'rejected',
+          reviewComment: 'The photo does not show the labels; please send a close-up.',
+          reviewedAt: '2026-10-30T15:00:00Z',
+        },
+      ],
+      followUps: [],
+    })
+    expect(e).toEqual({
+      id: expect.any(Number),
+      status: 'rejected',
+      overdue: false,
+      deadline: '2026-11-05',
+      daysRemaining: 3,
+      daysOverdue: 0,
+      requiredRemediation: 'Label and date every container in the walk-in.',
+      issue: {
+        resultId: expect.any(Number),
+        requirement: 'Stored food is labeled and within its use-by date.',
+        comment: 'Unlabeled containers in the walk-in.',
+        resolved: false,
+      },
+      storeId: 1,
+      storeName: 'Blue Plate Diner',
+      inspectionId: expect.any(Number),
+      inspectionDate: '2026-10-23',
+      followUpDate: null,
+      followUpInspectionId: null,
+    })
+  })
+
+  it('shows ticket H as approved through its submitted follow-up', () => {
+    const { get } = setup()
+    const h = byComment(allTickets(get), 'Fruit flies')
+    expect(get('inspector', `/api/tickets/${h.id}`).body).toMatchObject({
+      status: 'approved',
+      issue: { resolved: true },
+      approvedAt: '2026-10-03T15:00:00Z',
+      followUpDate: null,
+      submissions: [{ decision: 'follow_up', reviewComment: null }],
+      followUps: [
+        {
+          inspectionDate: '2026-10-03',
+          status: 'submitted',
+          compliant: true,
+          comment: 'No flies seen; drain cleaned.',
+        },
+      ],
+    })
+  })
+})
+
+describe('history (AC 8.1, 9.1)', () => {
+  const summary = ({ inspectionDate, inspectorName, violationCount, followUp }) =>
+    [inspectionDate, inspectorName, violationCount, followUp]
+
+  it('lists submitted inspections newest first with violation counts', () => {
+    const { get } = setup()
+    expect(get('owner', '/api/my-store/inspections').body.map(summary)).toEqual([
+      ['2026-10-23', 'Ivy Inspector', 6, false],
+      ['2026-10-03', 'Ivy Inspector', 0, false],
+      ['2026-09-03', 'Ivy Inspector', 1, false],
+    ])
+    expect(get('inspector', '/api/stores/3/inspections').body.map(summary)).toEqual([
+      ['2026-10-28', 'Ivy Inspector', 1, false],
+      ['2026-10-03', 'Ivy Inspector', 0, true],
+      ['2026-09-23', 'Ivy Inspector', 1, false],
+    ])
+    expect(get('inspector', '/api/stores/2/inspections')).toEqual({ status: 200, body: [] })
+    expect(get('inspector', '/api/stores/99/inspections')).toEqual({
+      status: 404,
+      body: { message: 'Store not found.' },
+    })
+  })
+
+  it('I2: shows every checklist result of a submitted inspection, with photos and tickets (AC 8.2)', () => {
+    const { get } = setup()
+    const [latest] = get('inspector', '/api/stores/1/inspections').body
+    const detail = get('inspector', `/api/inspections/${latest.id}`).body
+    expect(detail).toMatchObject({
+      id: latest.id,
+      storeId: 1,
+      storeName: 'Blue Plate Diner',
+      inspectorName: 'Ivy Inspector',
+      inspectionDate: '2026-10-23',
+      status: 'submitted',
+      submittedAt: '2026-10-23T15:00:00Z',
+      followUpOfTicketId: null,
+      violationCount: 6,
+    })
+    expect(detail.results.map((result) => [result.requirementId, result.compliant, result.ticket?.status ?? null]))
+      .toEqual([
+        [1, false, 'open'],
+        [2, false, 'follow_up_scheduled'],
+        [3, false, 'open'],
+        [4, false, null],
+        [5, false, 'awaiting_review'],
+        [6, true, null],
+        [7, false, 'rejected'],
+        [8, true, null],
+      ])
+    expect(detail.results[0]).toEqual({
+      id: expect.any(Number),
+      requirementId: 1,
+      requirement: 'Cold food is held at 41°F (5°C) or below and hot food at 135°F (57°C) or above.',
+      compliant: false,
+      comment: 'Walk-in cooler read 48°F.',
+      photoIds: [expect.any(Number)],
+      resolved: false,
+      ticket: {
+        id: expect.any(Number),
+        status: 'open',
+        overdue: true,
+        deadline: '2026-10-31',
+        daysRemaining: -2,
+        daysOverdue: 2,
+        requiredRemediation: 'Repair the cooler and log temperatures twice daily.',
+      },
+    })
+    expect(detail.results[5]).toMatchObject({ compliant: true, comment: null, photoIds: [], resolved: null })
+  })
+
+  it("I2: hides another inspector's regular draft", () => {
+    const { backend, get } = setup()
+    backend.handle('POST', '/api/auth/register', {
+      name: 'Ada Inspector',
+      email: 'ada@example.com',
+      password: 'correct-horse',
+      role: 'inspector',
+    })
+    const { token, user } = backend.handle('POST', '/api/auth/login', {
+      email: 'ada@example.com',
+      password: 'correct-horse',
+    }).body
+    const draft = startRegular(backend.db, backend.db.stores[0], user, TODAY, 'now')
+    const url = `/api/inspections/${draft.id}`
+
+    expect(backend.handle('GET', url, undefined, { authorization: `Bearer ${token}` }).body).toMatchObject({
+      status: 'draft',
+      results: expect.arrayContaining([expect.objectContaining({ compliant: null })]),
+    })
+    expect(get('inspector', url)).toEqual({ status: 404, body: { message: 'Inspection not found.' } })
+  })
+})
+
+describe('I8 ticket queues', () => {
+  it('lists awaiting_review and follow_up_scheduled tickets across stores', () => {
+    const { get } = setup()
+    expect(get('inspector', '/api/tickets?status=awaiting_review').body.map((ticket) => ticket.issue.comment))
+      .toEqual(['Cutting boards stained and not sanitized.'])
+    expect(get('inspector', '/api/tickets?status=open').body.map((ticket) => ticket.storeName)).toEqual([
+      'Blue Plate Diner',
+      'Blue Plate Diner',
+      'Corner Bakery Co.',
+    ])
+  })
+
+  it('returns 400 without a status or with an unknown one', () => {
+    const { get } = setup()
+    const unknown = { status: 400, body: { message: 'Unknown ticket status.' } }
+    expect(get('inspector', '/api/tickets')).toEqual(unknown)
+    expect(get('inspector', '/api/tickets?status=overdue')).toEqual(unknown)
+    expect(get('inspector', '/api/tickets?status=AWAITING_REVIEW')).toEqual(unknown)
+  })
+})
+
+describe('authorization (AC 9.2, 15.2)', () => {
+  const forbidden = { status: 403, body: { message: 'You are not authorized to view this page.' } }
+
+  it("gives an owner 404 for another store's ticket and 403 for another store's history", () => {
+    const { get } = setup()
+    const corner = get('otherOwner', '/api/my-store/tickets').body
+    expect(corner).toHaveLength(2)
+    for (const ticket of corner) {
+      expect(get('owner', `/api/my-store/tickets/${ticket.id}`)).toEqual({
+        status: 404,
+        body: { message: 'Ticket not found.' },
+      })
+    }
+    expect(get('owner', '/api/my-store/tickets/999')).toEqual({ status: 404, body: { message: 'Ticket not found.' } })
+    expect(get('owner', '/api/stores/3/inspections')).toEqual(forbidden)
+    expect(get('owner', `/api/tickets/${corner[0].id}`)).toEqual(forbidden)
+  })
+
+  it('gives an inspector 403 on owner routes', () => {
+    const { get } = setup()
+    expect(get('inspector', '/api/my-store')).toEqual(forbidden)
+  })
+
+  it('needs a known bearer token on protected routes', () => {
+    const { backend, get } = setup()
+    const required = { status: 401, body: { message: 'Authentication required.' } }
+    expect(get(null, '/api/my-store')).toEqual(required)
+    expect(backend.handle('GET', '/api/my-store', undefined, { authorization: 'Bearer nope' })).toEqual(required)
+    expect(get(null, '/api/stores').status).toBe(200)
+    expect(get('owner', '/api/nothing-here')).toEqual({ status: 404, body: { message: 'Not found.' } })
+  })
+
+  it('signs a demo account in with a session the protected routes accept', () => {
+    const { backend } = setup()
+    const login = backend.handle('POST', '/api/auth/login', {
+      email: 'OWNER.CORNER@audeat.test',
+      password: 'audeat-demo',
+    })
+    expect(login.body.user).toEqual(MOCK_USERS.otherOwner)
+    const authorization = `Bearer ${login.body.token}`
+    expect(backend.handle('GET', '/api/my-store', undefined, { authorization }).body.name).toBe('Corner Bakery Co.')
+  })
+})
+
+describe('S1 photos', () => {
+  it('serves an inspector any photo and an owner only their own store’s', async () => {
+    const { get } = setup()
+    const blue = get('owner', '/api/my-store/tickets').body
+    const issuePhoto = get('owner', `/api/my-store/tickets/${blue[0].id}`).body.issue.photoIds[0]
+
+    const photo = get('inspector', `/api/photos/${issuePhoto}`)
+    expect(photo.status).toBe(200)
+    expect(photo.blob.type).toBe('image/png')
+    expect(new Uint8Array(await photo.blob.arrayBuffer()).slice(1, 4)).toEqual(new Uint8Array([80, 78, 71]))
+    expect(get('owner', `/api/photos/${issuePhoto}`).status).toBe(200)
+    expect(get('otherOwner', `/api/photos/${issuePhoto}`)).toEqual({
+      status: 404,
+      body: { message: 'Photo not found.' },
+    })
+    expect(get('owner', '/api/photos/999').status).toBe(404)
+    expect(get(null, `/api/photos/${issuePhoto}`).status).toBe(401)
+  })
+
+  it("hides a draft inspection's photo from its store owner", () => {
+    const { backend, get } = setup()
+    const followUp = backend.db.inspections.find((inspection) => inspection.status === 'draft')
+    const result = backend.db.inspectionResults.find((row) => row.inspectionId === followUp.id)
+    const photo = backend.db.insert('photos', {
+      resultId: result.id,
+      submissionId: null,
+      contentType: 'image/png',
+      blob: new Blob(['x'], { type: 'image/png' }),
+      createdAt: 'now',
+    })
+    expect(get('inspector', `/api/photos/${photo.id}`).status).toBe(200)
+    expect(get('owner', `/api/photos/${photo.id}`).status).toBe(404)
+  })
+})

@@ -3,10 +3,10 @@ import { Link, Navigate, useLocation, useParams } from 'react-router'
 import { useAuth } from '../auth/AuthContext.jsx'
 import { useStores } from '../auth/useStores.js'
 
-// Landing pages for each role. Store selection (US 14 and 15) builds on these.
+// The inspector's store pages (US 14), plus the shell every signed-in page uses.
 const STORE_SELECTION_REQUIRED = 'Select a store before starting an inspection.'
 
-function HomeShell({ title, children }) {
+export function HomeShell({ title, children }) {
   const { user, signOut } = useAuth()
 
   useEffect(() => {
@@ -45,6 +45,11 @@ export function InspectorHome() {
   return (
     <HomeShell title="Stores">
       <p className="lede">Every store registered in AudEat.</p>
+      <div className="store-actions">
+        <Link className="action-link secondary-action" to="/tickets">
+          Remediation tickets
+        </Link>
+      </div>
       {location.state?.storeSelectionRequired ? (
         <p className="alert" role="alert">
           {STORE_SELECTION_REQUIRED}
@@ -93,54 +98,6 @@ export function InspectorHome() {
   )
 }
 
-function StoreActionPage({ action }) {
-  const { storeId } = useParams()
-  const stores = useStores(true)
-  const store = stores.items.find((item) => String(item.id) === storeId)
-
-  if (stores.status === 'ready' && !store) {
-    if (action === 'start') {
-      return <Navigate to="/stores" replace state={{ storeSelectionRequired: true }} />
-    }
-    return (
-      <HomeShell title="Store not found">
-        <p className="lede">This store could not be found.</p>
-        <Link className="action-link" to="/stores">Back to stores</Link>
-      </HomeShell>
-    )
-  }
-
-  const title = action === 'start' ? 'New inspection' : 'Inspection history'
-
-  return (
-    <HomeShell title={title}>
-      {stores.status === 'loading' ? <p className="lede">Loading store…</p> : null}
-      {stores.status === 'error' ? (
-        <p className="lede">
-          Couldn't load the store.{' '}
-          <button type="button" className="text-button" onClick={stores.retry}>
-            Try again
-          </button>
-        </p>
-      ) : null}
-      {store ? (
-        <>
-          <h2 className="store-name">{store.name}</h2>
-          <p className="store-address">{store.address}</p>
-          <p className="lede">
-            {action === 'start'
-              ? 'Inspection creation is not available yet.'
-              : 'Inspection history is not available yet.'}
-          </p>
-        </>
-      ) : null}
-      <Link className="action-link" to={store ? `/stores/${store.id}` : '/stores'}>
-        Back to {store ? 'store' : 'stores'}
-      </Link>
-    </HomeShell>
-  )
-}
-
 export function StoreDetails() {
   const { storeId } = useParams()
   const stores = useStores(true)
@@ -184,24 +141,6 @@ export function StoreDetails() {
   )
 }
 
-export function StartInspection() {
-  return <StoreActionPage action="start" />
-}
-
-export function InspectionHistory() {
-  return <StoreActionPage action="history" />
-}
-
 export function InspectionWithoutStore() {
   return <Navigate to="/stores" replace state={{ storeSelectionRequired: true }} />
-}
-
-export function OwnerHome() {
-  const { user } = useAuth()
-
-  return (
-    <HomeShell title={user.storeName ?? 'My store'}>
-      <p className="lede">Your remediation tickets and inspection history.</p>
-    </HomeShell>
-  )
 }

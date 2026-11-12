@@ -1,20 +1,26 @@
-// In-memory stand-in for the Spring Boot auth API, following the contract in
-// src/api/auth.js. Development and tests only; never bundled into the app.
+// In-memory stand-in for the Spring Boot API, following the contract in src/api/ and
+// DESIGN §4. Development and tests only; never bundled into the app.
 
-export const SEED_STORES = [
-  { id: '1', name: 'Blue Plate Diner', address: '412 Main St' },
-  { id: '2', name: 'Harbor Noodle House', address: '88 Wharf Ave' },
-  { id: '3', name: 'Corner Bakery Co.', address: '1500 Grand Blvd' },
-]
+import { HttpError, createTables, findById, localToday, publicUser } from './data.js'
+import { inspectorRoutes } from './routes/inspector.js'
+import { ownerRoutes } from './routes/owner.js'
+import { sharedRoutes } from './routes/shared.js'
+import { MOCK_TOKENS, MOCK_USERS, SEED_STORES, seedDatabase } from './seed.js'
+
+export { SEED_STORES }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const ROLES = ['inspector', 'owner']
+const ROUTES = [...sharedRoutes, ...ownerRoutes, ...inspectorRoutes]
 
-export function createMockBackend({ stores = SEED_STORES } = {}) {
-  const users = new Map()
+/** `today` ('YYYY-MM-DD') pins the date the seed and the derived values are relative to. */
+export function createMockBackend({ stores = SEED_STORES, today } = {}) {
+  const db = createTables(stores)
+  seedDatabase(db, today ?? localToday())
+  const sessions = new Map(Object.entries(MOCK_TOKENS).map(([key, token]) => [token, MOCK_USERS[key].id]))
 
-  function publicUser({ password: _password, ...user }) {
-    return user
+  function findUser(email) {
+    return db.users.find((user) => user.email.toLowerCase() === String(email ?? '').toLowerCase())
   }
 
   function register(body) {
@@ -27,38 +33,60 @@ export function createMockBackend({ stores = SEED_STORES } = {}) {
     if (body.role === 'owner' && !store) errors.storeId = 'Store is required.'
     if (Object.keys(errors).length > 0) return { status: 400, body: { errors } }
 
-    const key = body.email.toLowerCase()
-    if (users.has(key)) return { status: 409, body: { message: 'Email is already registered.' } }
+    if (findUser(body.email)) return { status: 409, body: { message: 'Email is already registered.' } }
 
-    const user = {
-      id: users.size + 1,
+    const user = db.insert('users', {
       name: body.name.trim(),
       email: body.email,
       role: body.role,
       storeId: body.role === 'owner' ? store.id : null,
       storeName: body.role === 'owner' ? store.name : null,
       password: body.password,
-    }
-    users.set(key, user)
+    })
     return { status: 201, body: publicUser(user) }
   }
 
   function login(body) {
-    const user = users.get(String(body.email ?? '').toLowerCase())
+    const user = findUser(body.email)
     if (!user || user.password !== body.password) {
       return { status: 401, body: { message: 'Invalid email or password.' } }
     }
-    return { status: 200, body: { token: crypto.randomUUID(), user: publicUser(user) } }
+    const token = crypto.randomUUID()
+    sessions.set(token, user.id)
+    return { status: 200, body: { token, user: publicUser(user) } }
+  }
+
+  function sessionUser(authorization) {
+    const token = /^Bearer (.+)$/.exec(authorization ?? '')?.[1]
+    return token === undefined ? undefined : findById(db.users, sessions.get(token))
   }
 
   return {
-    handle(method, path, body = {}) {
-      if (method === 'GET' && path === '/api/stores') {
+    db,
+    // Synchronous on purpose: StrictMode's double effects then see each other's writes.
+    handle(method, url, body = {}, { authorization } = {}) {
+      const { pathname, searchParams } = new URL(url, 'http://mock')
+      if (method === 'GET' && pathname === '/api/stores') {
         return { status: 200, body: stores.toSorted((a, b) => a.name.localeCompare(b.name)) }
       }
-      if (method === 'POST' && path === '/api/auth/register') return register(body)
-      if (method === 'POST' && path === '/api/auth/login') return login(body)
-      return { status: 404, body: { message: 'Not found.' } }
+      if (method === 'POST' && pathname === '/api/auth/register') return register(body)
+      if (method === 'POST' && pathname === '/api/auth/login') return login(body)
+
+      const route = ROUTES.find((item) => item.method === method && item.pattern.test(pathname))
+      if (!route) return { status: 404, body: { message: 'Not found.' } }
+      const user = sessionUser(authorization)
+      if (!user) return { status: 401, body: { message: 'Authentication required.' } }
+      if (route.role !== 'any' && route.role !== user.role) {
+        return { status: 403, body: { message: 'You are not authorized to view this page.' } }
+      }
+
+      const ctx = { db, user, today: today ?? localToday() }
+      try {
+        return route.handler(ctx, route.pattern.exec(pathname).groups ?? {}, body, searchParams)
+      } catch (error) {
+        if (error instanceof HttpError) return { status: error.status, body: error.body }
+        throw error
+      }
     },
   }
 }
