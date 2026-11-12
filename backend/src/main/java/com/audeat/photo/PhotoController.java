@@ -3,6 +3,7 @@ package com.audeat.photo;
 import com.audeat.security.CurrentUser;
 import java.time.Duration;
 import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -28,13 +29,17 @@ public class PhotoController {
     this.currentUser = currentUser;
   }
 
-  /** Photos never change, so the browser may keep them for a day. */
+  /**
+   * Photos never change, so the browser may keep them for a day. The answer depends on who asks
+   * (another store's owner gets 404), so the cached copy is keyed by the Authorization header too.
+   */
   @GetMapping("/{id}")
   public ResponseEntity<byte[]> photo(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
     Photo photo = photos.load(id, currentUser.require(jwt));
     return ResponseEntity.ok()
         .contentType(MediaType.parseMediaType(photo.getContentType()))
         .cacheControl(CacheControl.maxAge(Duration.ofDays(1)).cachePrivate())
+        .header(HttpHeaders.VARY, HttpHeaders.AUTHORIZATION)
         .body(photo.getData());
   }
 }

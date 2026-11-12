@@ -21,6 +21,7 @@ export default function mockApi() {
         if (result.blob) {
           res.setHeader('Content-Type', result.blob.type)
           res.setHeader('Cache-Control', 'private, max-age=86400')
+          res.setHeader('Vary', 'Authorization')
           res.end(Buffer.from(await result.blob.arrayBuffer()))
           return
         }
