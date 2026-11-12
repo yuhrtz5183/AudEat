@@ -1,5 +1,6 @@
 package com.audeat.photo;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -82,6 +83,7 @@ class PhotoApiTest {
         .andExpect(content().contentType("image/webp"))
         .andExpect(content().bytes(WEBP))
         .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "max-age=86400, private"))
+        .andExpect(header().stringValues(HttpHeaders.VARY, hasItem(HttpHeaders.AUTHORIZATION)))
         .andExpect(header().string("X-Content-Type-Options", "nosniff"));
     photo(evidencePhoto, inspector).andExpect(status().isOk());
   }
