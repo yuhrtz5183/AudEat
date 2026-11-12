@@ -5,6 +5,7 @@ import com.audeat.inspection.Inspection;
 import com.audeat.inspection.InspectionRepository;
 import com.audeat.inspection.InspectionResult;
 import com.audeat.inspection.InspectionResultRepository;
+import com.audeat.inspection.InspectionStatus;
 import com.audeat.remediation.RemediationSubmission;
 import com.audeat.remediation.RemediationSubmissionRepository;
 import com.audeat.remediation.RemediationTicket;
@@ -21,6 +22,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -149,6 +151,19 @@ public class TestData {
       default -> {}
     }
     return ticket;
+  }
+
+  /** The inspector's unsubmitted answer on a FOLLOW_UP_SCHEDULED ticket's draft follow-up. */
+  @Transactional
+  public void markDraftFollowUp(RemediationTicket ticket, Boolean compliant, String comment) {
+    Long issueId = tickets.findById(ticket.getId()).orElseThrow().getResult().getId();
+    inspections.findByFollowUpOfIdInOrderByIdAsc(List.of(issueId)).stream()
+        .filter(followUp -> followUp.getStatus() == InspectionStatus.DRAFT)
+        .findFirst()
+        .orElseThrow()
+        .getResults()
+        .get(0)
+        .update(compliant, comment);
   }
 
   public String bearer(UserAccount user) {

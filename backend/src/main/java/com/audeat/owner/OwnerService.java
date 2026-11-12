@@ -99,7 +99,7 @@ public class OwnerService {
 
   /** AC 4.2. Another store's ticket gets the same 404 as a missing one. */
   public TicketDetailResponse myTicket(long storeId, long ticketId) {
-    return ticketViews.detail(findTicket(storeId, ticketId));
+    return ticketViews.ownerDetail(findTicket(storeId, ticketId));
   }
 
   /**
@@ -156,7 +156,7 @@ public class OwnerService {
     }
     // Write now, so a concurrent submit fails here (409) and the response reads the new rows.
     tickets.flush();
-    return ticketViews.detail(ticket);
+    return ticketViews.ownerDetail(ticket);
   }
 
   /** Another store's ticket gets the same 404 as a missing one (AC 9.2). */

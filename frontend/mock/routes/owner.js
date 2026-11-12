@@ -100,7 +100,7 @@ export const ownerRoutes = [
     pattern: /^\/api\/my-store\/tickets\/(?<ticketId>[^/]+)$/,
     role: 'owner',
     handler({ db, user, today }, { ticketId }) {
-      return { status: 200, body: ticketDetail(db, ownTicket(db, user, ticketId), today) }
+      return { status: 200, body: ticketDetail(db, ownTicket(db, user, ticketId), today, { forOwner: true }) }
     },
   },
   // O4 (US 5): multipart `comment` and 1-5 `files`, checked in the backend's order: 413, 404,
@@ -143,7 +143,7 @@ export const ownerRoutes = [
           createdAt: now,
         })
       }
-      return { status: 201, body: ticketDetail(db, ticket, today) }
+      return { status: 201, body: ticketDetail(db, ticket, today, { forOwner: true }) }
     },
   },
   // O5

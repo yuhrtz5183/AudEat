@@ -3,7 +3,11 @@ package com.audeat.owner;
 import static com.audeat.TestData.result;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -292,6 +296,24 @@ class OwnerTicketsApiTest {
         .andExpect(jsonPath("$.submissions[0].decision").value("follow_up"))
         .andExpect(jsonPath("$.followUps[0].inspectionDate").value(tomorrow))
         .andExpect(jsonPath("$.followUps[0].status").value("draft"));
+  }
+
+  @Test
+  @DisplayName("the owner sees a draft follow-up's date, but not the inspector's unsubmitted result")
+  void draftFollowUpResultIsHiddenFromOwner() throws Exception {
+    Inspection blue = testData.submittedInspection(bluePlate, inspector, 1);
+    RemediationTicket ticket =
+        testData.ticket(result(blue, 1), TicketStatus.FOLLOW_UP_SCHEDULED, today.plusDays(7));
+    testData.markDraftFollowUp(ticket, false, "Shelving still not installed.");
+
+    myTicket(owner, ticket.getId())
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.followUps.length()").value(1))
+        .andExpect(jsonPath("$.followUps[0].inspectionDate").value(today.plusDays(1).toString()))
+        .andExpect(jsonPath("$.followUps[0].status").value("draft"))
+        .andExpect(jsonPath("$.followUps[0].compliant").value(nullValue()))
+        .andExpect(jsonPath("$.followUps[0].comment").value(nullValue()))
+        .andExpect(content().string(not(containsString("Shelving still not installed."))));
   }
 
   @Test

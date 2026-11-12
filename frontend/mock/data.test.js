@@ -422,6 +422,29 @@ describe('S1 photos', () => {
     expect(get('inspector', `/api/photos/${photo.id}`).status).toBe(200)
     expect(get('owner', `/api/photos/${photo.id}`).status).toBe(404)
   })
+
+  it("hides a draft follow-up's unsubmitted result from the store owner, but not its date", () => {
+    const { backend, get } = setup()
+    const scheduled = get('owner', '/api/my-store/tickets').body.find(
+      (ticket) => ticket.status === 'follow_up_scheduled',
+    )
+    const result = backend.db.inspectionResults.find(
+      (row) => row.inspectionId === scheduled.followUpInspectionId,
+    )
+    Object.assign(result, { compliant: false, comment: 'Shelving still not installed.' })
+
+    const draft = {
+      inspectionId: scheduled.followUpInspectionId,
+      inspectionDate: scheduled.followUpDate,
+      status: 'draft',
+    }
+    expect(get('owner', `/api/my-store/tickets/${scheduled.id}`).body.followUps).toEqual([
+      { ...draft, compliant: null, comment: null },
+    ])
+    expect(get('inspector', `/api/tickets/${scheduled.id}`).body.followUps).toEqual([
+      { ...draft, compliant: false, comment: 'Shelving still not installed.' },
+    ])
+  })
 })
 
 describe('O4 evidence (US 5)', () => {
