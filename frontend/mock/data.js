@@ -306,7 +306,9 @@ export function ticketSummary(db, ticket, today) {
   }
 }
 
-export function ticketDetail(db, ticket, today) {
+// An owner sees a draft follow-up's date and status, but not the inspector's unsubmitted result
+// (as TicketViews.ownerDetail; owners never see draft inspection content, like draft photos).
+export function ticketDetail(db, ticket, today, { forOwner = false } = {}) {
   const summary = ticketSummary(db, ticket, today)
   const submissions = db.remediationSubmissions
     .filter((submission) => submission.ticketId === ticket.id)
@@ -327,12 +329,13 @@ export function ticketDetail(db, ticket, today) {
     })),
     followUps: followUpsOf(db, ticket.resultId).map((followUp) => {
       const result = db.inspectionResults.find((row) => row.inspectionId === followUp.id)
+      const hidden = forOwner && followUp.status === 'draft'
       return {
         inspectionId: followUp.id,
         inspectionDate: followUp.inspectionDate,
         status: followUp.status,
-        compliant: result.compliant,
-        comment: result.comment,
+        compliant: hidden ? null : result.compliant,
+        comment: hidden ? null : result.comment,
       }
     }),
   }

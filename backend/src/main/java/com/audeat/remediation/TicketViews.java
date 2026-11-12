@@ -58,8 +58,21 @@ public class TicketViews {
         .toList();
   }
 
-  /** One ticket with its issue photos, submissions and follow-ups. */
+  /** One ticket with its issue photos, submissions and follow-ups, as an inspector sees it. */
   public TicketDetailResponse detail(RemediationTicket ticket) {
+    return detail(ticket, false);
+  }
+
+  /**
+   * One ticket as its store's owner sees it. A follow-up the inspector has not submitted yet keeps
+   * its date and status, but not its result or comment: owners never see draft inspection content,
+   * the same rule {@code PhotoService} applies to photos.
+   */
+  public TicketDetailResponse ownerDetail(RemediationTicket ticket) {
+    return detail(ticket, true);
+  }
+
+  private TicketDetailResponse detail(RemediationTicket ticket, boolean hideDraftResults) {
     LocalDate today = LocalDate.now(clock);
     Long resultId = ticket.getResult().getId();
     List<Inspection> followUps = inspections.findByFollowUpOfIdInOrderByIdAsc(List.of(resultId));
@@ -110,7 +123,7 @@ public class TicketViews {
                         submission.getReviewComment(),
                         submission.getReviewedAt()))
             .toList(),
-        followUps.stream().map(TicketViews::followUp).toList());
+        followUps.stream().map(followUp -> followUp(followUp, hideDraftResults)).toList());
   }
 
   private static TicketSummaryResponse summary(
@@ -140,13 +153,14 @@ public class TicketViews {
   }
 
   /** A follow-up re-checks one requirement, so it has exactly one result. */
-  private static FollowUpResponse followUp(Inspection followUp) {
+  private static FollowUpResponse followUp(Inspection followUp, boolean hideDraftResults) {
     InspectionResult result = followUp.getResults().get(0);
+    boolean hidden = hideDraftResults && followUp.getStatus() == InspectionStatus.DRAFT;
     return new FollowUpResponse(
         followUp.getId(),
         followUp.getInspectionDate(),
         followUp.getStatus(),
-        result.getCompliant(),
-        result.getComment());
+        hidden ? null : result.getCompliant(),
+        hidden ? null : result.getComment());
   }
 }
