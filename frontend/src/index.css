@@ -705,3 +705,67 @@ select {
     gap: 0;
   }
 }
+
+/* Owner evidence form (US 5) */
+.evidence-form form {
+  max-width: 560px;
+  margin-top: 16px;
+}
+
+.evidence-form .lede {
+  margin-top: 8px;
+}
+
+.field textarea {
+  display: block;
+  width: 100%;
+  min-height: 112px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.field input[type="file"] {
+  height: auto;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.field textarea:focus,
+.field input[type="file"]:focus-visible {
+  outline: none;
+  border-color: var(--moss);
+  box-shadow: 0 0 0 3px rgba(47, 107, 79, 0.16);
+}
+
+.invalid textarea {
+  border-color: var(--stamp);
+  background: #fff8f6;
+}
+
+.evidence-form .submit {
+  width: auto;
+  padding: 0 28px;
+}
+
+.evidence-sent,
+.ticket-reloaded {
+  margin-top: 8px;
+}
+
+.evidence-sent:focus,
+.ticket-reloaded:focus,
+.evidence-form .alert:focus {
+  outline: 2px solid var(--moss);
+  outline-offset: 2px;
+}
+
+/* Owner inspection history (US 9) */
+.history-badge {
+  margin-left: 10px;
+  font-weight: 500;
+}
