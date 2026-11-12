@@ -384,6 +384,7 @@ describe('authorization (AC 9.2, 15.2)', () => {
       password: 'audeat-demo',
     })
     expect(login.body.user).toEqual(MOCK_USERS.otherOwner)
+    expect(login.body.user.storeId).toBe(3) // a number, as the backend sends it
     const authorization = `Bearer ${login.body.token}`
     expect(backend.handle('GET', '/api/my-store', undefined, { authorization }).body.name).toBe('Corner Bakery Co.')
   })
@@ -612,6 +613,8 @@ describe('O4 evidence (US 5)', () => {
     expect(errors('\u00a0').comment).toBeUndefined()
     expect(errors(['x'.repeat(500), 'x'.repeat(500)]).comment).toBe('Use 1000 characters or fewer.')
     expect(errors('x'.repeat(1000)).comment).toBeUndefined()
+    // A textarea line break arrives as CRLF but counts as one character, as in the form.
+    expect(errors(`${'x'.repeat(499)}\r\n${'x'.repeat(500)}`).comment).toBeUndefined()
 
     const response = post('owner', b, evidence('\u00a0Fixed. ', [png()]))
     expect(response.status).toBe(201)

@@ -392,6 +392,19 @@ class OwnerEvidenceApiTest {
   }
 
   @Test
+  @DisplayName("a line break counts as one character, as in the form, though the browser sends CRLF")
+  void lineBreakCountsOnce() throws Exception {
+    RemediationTicket ticket = openTicket();
+    // 1001 characters as sent, 1000 as the textarea's maxlength counts them.
+    String comment = "x".repeat(499) + "\r\n" + "x".repeat(500);
+
+    submit(owner, ticket.getId(), comment, file("fix.png", PNG))
+        .andExpect(status().isCreated())
+        .andExpect(
+            jsonPath("$.submissions[0].comment").value("x".repeat(499) + "\n" + "x".repeat(500)));
+  }
+
+  @Test
   @DisplayName(
       "a ticket that is not waiting for evidence gets 409, before any field check; nothing is"
           + " saved")

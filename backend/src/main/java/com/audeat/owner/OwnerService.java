@@ -120,7 +120,9 @@ public class OwnerService {
     ticket.submitEvidence();
 
     Map<String, String> errors = new LinkedHashMap<>();
-    String text = comment == null ? "" : comment.strip();
+    // A browser sends each line break of the textarea as CRLF but counts it as one character for
+    // maxlength, so count (and keep) it as one here too.
+    String text = comment == null ? "" : comment.replace("\r\n", "\n").strip();
     if (text.isEmpty()) {
       errors.put("comment", "Describe how you fixed the issue.");
     } else if (text.length() > MAX_COMMENT_LENGTH) {

@@ -56,12 +56,14 @@ const STRIP = new RegExp(`^${JAVA_WHITESPACE}+|${JAVA_WHITESPACE}+$`, 'g')
 /** `@RequestParam String comment`: the text parts named comment, joined by commas if repeated. */
 function commentOf(form) {
   const values = (form?.getAll('comment') ?? []).filter((value) => typeof value === 'string')
-  return values.length === 0 ? '' : values.join(',').replace(STRIP, '')
+  // A line break arrives as CRLF; count it as one character, as the backend and maxlength do.
+  return values.length === 0 ? '' : values.join(',').replaceAll('\r\n', '\n').replace(STRIP, '')
 }
 
 /**
- * O4's field errors, with the backend's messages. handle() is synchronous, so the mock checks
- * each file's declared type; the backend (and the evidence form) read the file's first bytes.
+ * O4's field errors, with the backend's messages. handle() is synchronous, so it checks each
+ * file's type. On the dev server that type is read from the file's first bytes (vitePlugin.js),
+ * as the backend and the evidence form do; unit tests pass files with the type already set.
  */
 function evidenceErrors(comment, files) {
   const errors = {}

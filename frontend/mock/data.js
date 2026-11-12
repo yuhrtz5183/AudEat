@@ -37,8 +37,9 @@ export function createTables(stores) {
 }
 
 /** A user row as the API returns it: everything but the password. */
+// The backend sends storeId as a number; the mock keeps store ids as strings internally.
 export function publicUser({ password: _password, ...user }) {
-  return user
+  return { ...user, storeId: user.storeId == null ? null : Number(user.storeId) }
 }
 
 export function findById(rows, id) {
