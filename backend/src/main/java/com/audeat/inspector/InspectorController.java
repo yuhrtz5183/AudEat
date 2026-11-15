@@ -3,6 +3,7 @@ package com.audeat.inspector;
 import com.audeat.common.ApiExceptionHandler.ErrorResponse;
 import com.audeat.inspection.InspectionDetailResponse;
 import com.audeat.inspection.InspectionSummaryResponse;
+import com.audeat.inspection.ResultResponse;
 import com.audeat.remediation.TicketDetailResponse;
 import com.audeat.security.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,15 +12,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-/** Inspector inspection reads and remediation-ticket creation (US 3). */
+/** Inspector inspections (US 1) and remediation-ticket creation (US 3). */
 @RestController
 public class InspectorController {
 
@@ -36,10 +39,33 @@ public class InspectorController {
     return inspector.history(storeId);
   }
 
+  /** AC 1.1: 201 for a new draft, 200 when the caller's existing draft is resumed. */
+  @PostMapping("/api/stores/{storeId}/inspections")
+  public ResponseEntity<InspectionDetailResponse> start(
+      @PathVariable long storeId, @AuthenticationPrincipal Jwt jwt) {
+    StartedInspection started = inspector.start(storeId, currentUser.require(jwt));
+    HttpStatus status = started.created() ? HttpStatus.CREATED : HttpStatus.OK;
+    return ResponseEntity.status(status).body(started.inspection());
+  }
+
   @GetMapping("/api/inspections/{inspectionId}")
   public InspectionDetailResponse inspection(
       @PathVariable long inspectionId, @AuthenticationPrincipal Jwt jwt) {
     return inspector.inspection(inspectionId, currentUser.require(jwt));
+  }
+
+  @PutMapping("/api/results/{resultId}")
+  public ResultResponse updateResult(
+      @PathVariable long resultId,
+      @RequestBody UpdateResultRequest request,
+      @AuthenticationPrincipal Jwt jwt) {
+    return inspector.updateResult(resultId, request, currentUser.require(jwt));
+  }
+
+  @PostMapping("/api/inspections/{inspectionId}/submit")
+  public InspectionDetailResponse submit(
+      @PathVariable long inspectionId, @AuthenticationPrincipal Jwt jwt) {
+    return inspector.submit(inspectionId, currentUser.require(jwt));
   }
 
   @PostMapping("/api/results/{resultId}/ticket")
