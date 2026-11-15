@@ -1,12 +1,104 @@
-import { Link } from 'react-router'
+import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router'
+import { fetchInspection } from '../api/inspector.js'
 import { HomeShell } from '../home/Home.jsx'
+import { formatDate } from '../owner/dates.js'
+import CreateTicketForm from './CreateTicketForm.jsx'
 
-// Stub: the draft form, follow-up form and read-only detail (US 1, 2, AC 7.3, 8.2).
+function useInspection(inspectionId) {
+  const [state, setState] = useState({ status: 'loading', inspection: null })
+  const [attempt, setAttempt] = useState(0)
+
+  useEffect(() => {
+    if (!/^\d+$/.test(inspectionId)) {
+      setState({ status: 'notFound', inspection: null })
+      return undefined
+    }
+    let active = true
+    setState((current) =>
+      current.inspection ? current : { status: 'loading', inspection: null },
+    )
+    fetchInspection(inspectionId).then(
+      (inspection) => {
+        if (active) setState({ status: 'ready', inspection })
+      },
+      (error) => {
+        if (active) setState({ status: error.status === 404 ? 'notFound' : 'error', inspection: null })
+      },
+    )
+    return () => {
+      active = false
+    }
+  }, [inspectionId, attempt])
+
+  return { ...state, retry: () => setAttempt((current) => current + 1) }
+}
+
+function mark(result) {
+  if (result.compliant === true) return 'Compliant'
+  if (result.compliant === false) return 'Flagged'
+  return 'Not marked'
+}
+
+// A submitted inspection's checklist. A flagged issue without a ticket can get one (US 3).
 export default function InspectionPage() {
+  const { inspectionId } = useParams()
+  const { status, inspection, retry } = useInspection(inspectionId)
+  const [createdId, setCreatedId] = useState(null)
+
   return (
-    <HomeShell title="Inspection">
-      <p className="lede">Inspections are not available yet.</p>
-      <Link className="text-button back-link" to="/stores">Back to stores</Link>
+    <HomeShell title={inspection?.storeName ?? (status === 'notFound' ? 'Inspection not found' : 'Inspection')}>
+      {status === 'loading' ? <p className="lede">Loading the inspection…</p> : null}
+      {status === 'notFound' ? <p className="lede">Inspection not found.</p> : null}
+      {status === 'error' ? (
+        <p className="lede">
+          Couldn't load this inspection.{' '}
+          <button type="button" className="text-button" onClick={retry}>
+            Try again
+          </button>
+        </p>
+      ) : null}
+      {inspection ? (
+        <>
+          <p className="lede">
+            <time dateTime={inspection.inspectionDate}>{formatDate(inspection.inspectionDate)}</time>
+            {' · '}
+            {inspection.inspectorName}
+          </p>
+          {createdId ? (
+            <p className="notice" role="status">Ticket created. The store owner can see it.</p>
+          ) : null}
+          <ul className="ticket-list" aria-label="Checklist">
+            {inspection.results.map((result) => (
+              <li key={result.id} className="ticket-card">
+                <p className="ticket-issue">{result.requirement}</p>
+                <p className="lede">{mark(result)}</p>
+                {result.comment ? <p>{result.comment}</p> : null}
+                {result.ticket ? (
+                  <p className="lede">
+                    Ticket due{' '}
+                    <time dateTime={result.ticket.deadline}>{formatDate(result.ticket.deadline)}</time>
+                    {': '}
+                    {result.ticket.requiredRemediation}
+                  </p>
+                ) : null}
+                {result.compliant === false && !result.ticket ? (
+                  <CreateTicketForm
+                    resultId={result.id}
+                    onCreated={() => {
+                      setCreatedId(result.id)
+                      retry()
+                    }}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      <Link className="text-button back-link" to={inspection ? `/stores/${inspection.storeId}/inspections` : '/stores'}>
+        Back to inspection history
+      </Link>
     </HomeShell>
   )
 }

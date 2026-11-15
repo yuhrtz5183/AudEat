@@ -1,6 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { renderApp, stubApi } from '../test/renderApp.jsx'
+import { renderApp, signInAs, stubApi } from '../test/renderApp.jsx'
 
 const INSPECTOR = {
   name: 'Ada Inspector',
@@ -61,7 +61,8 @@ describe('inspector store selection (US 14)', () => {
   })
 
   it('AC 14.1: the store-specific inspection actions retain the selected store', async () => {
-    signInInspector()
+    stubApi()
+    signInAs('inspector')
     const { user } = renderApp('/stores/2')
 
     await user.click(await screen.findByRole('link', { name: 'Start an inspection' }))
@@ -74,7 +75,7 @@ describe('inspector store selection (US 14)', () => {
     await user.click(screen.getByRole('link', { name: 'View inspection history' }))
     expect(screen.getByTestId('location')).toHaveTextContent('/stores/2/inspections')
     expect(screen.getByRole('heading', { name: 'Inspection history' })).toBeInTheDocument()
-    expect(screen.getByText('Inspection history is not available yet.')).toBeInTheDocument()
+    expect(await screen.findByText('No inspections recorded for this store')).toBeInTheDocument()
   })
 
   it('AC 14.4: opening new inspection without a selected store redirects with a message', async () => {
