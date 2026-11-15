@@ -1,11 +1,14 @@
 import {
   HttpError,
   TICKET_STATUSES,
+  conflict,
   findById,
   inspectionDetail,
+  inspectionOf,
   inspectionSummary,
   isEditableBy,
   notFound,
+  nowInstant,
   storeHistory,
   ticketDetail,
   ticketSummary,
@@ -59,6 +62,40 @@ export const inspectorRoutes = [
       const ticket = findById(db.remediationTickets, ticketId)
       if (!ticket) throw notFound('Ticket not found.')
       return { status: 200, body: ticketDetail(db, ticket, today) }
+    },
+  },
+  // US 3: one open ticket for a flagged issue on a submitted inspection.
+  {
+    method: 'POST',
+    pattern: /^\/api\/results\/(?<resultId>[^/]+)\/ticket$/,
+    role: 'inspector',
+    handler({ db, today }, { resultId }, body) {
+      const result = findById(db.inspectionResults, resultId)
+      if (!result) throw notFound('Result not found.')
+      const inspection = inspectionOf(db, result)
+      if (result.compliant !== false || inspection.status !== 'submitted') {
+        throw conflict('Only a flagged issue on a submitted inspection can have a remediation ticket.')
+      }
+      if (db.remediationTickets.some((ticket) => ticket.resultId === result.id)) {
+        throw conflict('This issue already has a remediation ticket.')
+      }
+
+      const text = typeof body?.requiredRemediation === 'string' ? body.requiredRemediation.trim() : ''
+      const errors = {}
+      if (!text) errors.requiredRemediation = 'Describe the required remediation.'
+      else if (text.length > 1000) errors.requiredRemediation = 'Use 1000 characters or fewer.'
+      if (!body?.deadline) errors.deadline = 'A deadline is required.'
+      if (Object.keys(errors).length > 0) throw new HttpError(400, { errors })
+
+      const ticket = db.insert('remediationTickets', {
+        resultId: result.id,
+        requiredRemediation: text,
+        deadline: body.deadline,
+        status: 'open',
+        createdAt: nowInstant(),
+        approvedAt: null,
+      })
+      return { status: 201, body: ticketDetail(db, ticket, today) }
     },
   },
 ]
