@@ -4,6 +4,7 @@ import { fetchInspection } from '../api/inspector.js'
 import { HomeShell } from '../home/Home.jsx'
 import { formatDate } from '../owner/dates.js'
 import Photo from '../components/Photo.jsx'
+import { TicketDeadline, TicketStatus } from '../owner/TicketStatus.jsx'
 import ChecklistEditor from './ChecklistEditor.jsx'
 import CreateTicketForm from './CreateTicketForm.jsx'
 
@@ -84,9 +85,26 @@ export default function InspectionPage() {
           <ul className="ticket-list" aria-label="Checklist">
             {inspection.results.map((result) => (
               <li key={result.id} className="ticket-card">
-                <p className="ticket-issue">{result.requirement}</p>
-                <p className="lede">{mark(result)}</p>
-                {result.comment ? <p>{result.comment}</p> : null}
+                <div className="result-header">
+                  <p className="ticket-issue">{result.requirement}</p>
+                  <span
+                    className={`badge ${
+                      result.compliant === true
+                        ? 'badge-compliant'
+                        : result.compliant === false
+                          ? 'badge-flagged'
+                          : ''
+                    }`}
+                  >
+                    {mark(result)}
+                  </span>
+                </div>
+                {result.comment ? (
+                  <div className="inspector-comment-box">
+                    <span className="comment-label">Inspector note</span>
+                    <p className="comment-text">{result.comment}</p>
+                  </div>
+                ) : null}
                 {result.photoIds && result.photoIds.length > 0 ? (
                   <ul className="photo-list" aria-label="Issue photos">
                     {result.photoIds.map((id) => (
@@ -97,21 +115,39 @@ export default function InspectionPage() {
                   </ul>
                 ) : null}
                 {result.ticket ? (
-                  <p className="lede">
-                    Ticket due{' '}
-                    <time dateTime={result.ticket.deadline}>{formatDate(result.ticket.deadline)}</time>
-                    {': '}
-                    {result.ticket.requiredRemediation}
-                  </p>
+                  <div className="remediation-box">
+                    <div className="remediation-box-header">
+                      <span className="remediation-box-title">Remediation ticket</span>
+                      <TicketStatus ticket={result.ticket} />
+                    </div>
+                    <dl className="ticket-facts">
+                      <div>
+                        <dt>Deadline</dt>
+                        <dd>
+                          Ticket due <TicketDeadline ticket={result.ticket} />
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Required remediation</dt>
+                        <dd>{result.ticket.requiredRemediation}</dd>
+                      </div>
+                    </dl>
+                  </div>
                 ) : null}
                 {result.compliant === false && !result.ticket ? (
-                  <CreateTicketForm
-                    resultId={result.id}
-                    onCreated={() => {
-                      setCreatedId(result.id)
-                      retry()
-                    }}
-                  />
+                  <div className="ticket-action-box">
+                    <div className="ticket-action-header">
+                      <span className="badge overdue-badge">Action needed</span>
+                      <span className="ticket-action-prompt">Create remediation ticket for this violation</span>
+                    </div>
+                    <CreateTicketForm
+                      resultId={result.id}
+                      onCreated={() => {
+                        setCreatedId(result.id)
+                        retry()
+                      }}
+                    />
+                  </div>
                 ) : null}
               </li>
             ))}

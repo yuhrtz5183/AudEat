@@ -60,6 +60,17 @@ export default function InspectionHistory() {
                 {' · '}
                 {violationsText(inspection.violationCount)}
               </Link>
+              {inspection.followUp ? (
+                <p>
+                  <span className="badge history-badge">Follow-up inspection</span>
+                </p>
+              ) : null}
+              <dl className="ticket-facts">
+                <div>
+                  <dt>Inspector</dt>
+                  <dd>{inspection.inspectorName}</dd>
+                </div>
+              </dl>
             </li>
           ))}
         </ul>
