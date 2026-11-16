@@ -938,3 +938,37 @@ select {
   margin-left: 10px;
   font-weight: 500;
 }
+
+/* Inspector review (US 6) */
+.review-form {
+  max-width: 560px;
+  margin-top: 24px;
+}
+
+.review-form fieldset {
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.review-form legend {
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.review-form .submit {
+  width: auto;
+  padding: 0 28px;
+}
