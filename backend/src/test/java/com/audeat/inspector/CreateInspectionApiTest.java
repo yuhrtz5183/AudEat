@@ -16,6 +16,7 @@ import com.audeat.TestData;
 import com.audeat.inspection.Inspection;
 import com.audeat.inspection.InspectionRepository;
 import com.audeat.inspection.InspectionResult;
+import com.audeat.remediation.RemediationTicket;
 import com.audeat.remediation.TicketStatus;
 import com.audeat.store.Store;
 import com.audeat.user.UserAccount;
@@ -158,7 +159,8 @@ class CreateInspectionApiTest {
     Store bluePlate = testData.store("Blue Plate Diner");
     Inspection visit = testData.submittedInspection(bluePlate, inspector, 4);
     InspectionResult issue = result(visit, 4);
-    testData.ticket(issue, TicketStatus.FOLLOW_UP_SCHEDULED, LocalDate.now(clock).plusDays(1));
+    RemediationTicket ticket =
+        testData.ticket(issue, TicketStatus.FOLLOW_UP_SCHEDULED, LocalDate.now(clock).plusDays(1));
     Inspection followUp =
         inspections.findWithResultsById(
                 inspections.findByFollowUpOfIdInOrderByIdAsc(List.of(issue.getId())).get(0).getId())
@@ -168,7 +170,17 @@ class CreateInspectionApiTest {
     submit(inspector, followUp.getId())
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("submitted"))
+        .andExpect(jsonPath("$.followUpOfTicketId").value(ticket.getId().intValue()))
         .andExpect(jsonPath("$.results[0].compliant").value(true));
+
+    as(inspector, get("/api/tickets/{id}", ticket.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("approved"))
+        .andExpect(jsonPath("$.issue.resolved").value(true));
+    as(inspector, get("/api/stores/{id}/inspections", bluePlate.getId()))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].followUp").value(true))
+        .andExpect(jsonPath("$[0].violationCount").value(0));
   }
 
   @Test
