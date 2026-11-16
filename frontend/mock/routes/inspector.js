@@ -1,6 +1,7 @@
 import {
   HttpError,
   TICKET_STATUSES,
+  approve,
   conflict,
   findById,
   inspectionDetail,
@@ -10,7 +11,12 @@ import {
   notFound,
   nowInstant,
   recordFollowUpResult,
+  reject,
+  resultOf,
   resultResponse,
+  review,
+  scheduleFollowUp,
+  scheduleFollowUpInspection,
   startRegular,
   storeHistory,
   submitInspection,
@@ -230,6 +236,49 @@ export const inspectorRoutes = [
         approvedAt: null,
       })
       return { status: 201, body: ticketDetail(db, ticket, today) }
+    },
+  },
+  // US 6: approve, reject, or schedule a follow-up for the submission awaiting review.
+  {
+    method: 'POST',
+    pattern: /^\/api\/tickets\/(?<ticketId>[^/]+)\/review$/,
+    role: 'inspector',
+    handler({ db, user, today }, { ticketId }, body) {
+      const ticket = findById(db.remediationTickets, ticketId)
+      if (!ticket) throw notFound('Ticket not found.')
+      const submission = db.remediationSubmissions.find(
+        (item) => item.ticketId === ticket.id && item.decision === null,
+      )
+      if (ticket.status !== 'awaiting_review' || !submission) {
+        throw conflict('This ticket has no evidence waiting for review.')
+      }
+
+      const decision = body?.decision
+      const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
+      const followUpDate = body?.followUpDate || null
+      const errors = {}
+      if (!['approved', 'rejected', 'follow_up'].includes(decision)) {
+        errors.decision = 'Choose approved, rejected, or a follow-up.'
+      }
+      if (comment.length > 1000) errors.comment = 'Use 1000 characters or fewer.'
+      else if (decision === 'rejected' && comment === '') {
+        errors.comment = 'Explain why further action is required.'
+      }
+      if (decision === 'follow_up') {
+        if (!followUpDate) errors.followUpDate = 'A follow-up date is required.'
+        else if (followUpDate <= today) errors.followUpDate = 'The follow-up date must be in the future.'
+      }
+      if (Object.keys(errors).length > 0) throw new HttpError(400, { errors })
+
+      const now = nowInstant()
+      review(submission, decision, comment || null, now)
+      if (decision === 'approved') approve(ticket, now)
+      else if (decision === 'rejected') reject(ticket)
+      else {
+        scheduleFollowUp(ticket)
+        scheduleFollowUpInspection(db, resultOf(db, ticket), user, followUpDate, now)
+      }
+      return { status: 200, body: ticketDetail(db, ticket, today) }
     },
   },
 ]
