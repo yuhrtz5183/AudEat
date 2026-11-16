@@ -48,6 +48,11 @@ function TicketCard({ ticket }) {
           </dd>
         </div>
       </dl>
+      {ticket.followUpInspectionId ? (
+        <Link className="action-link" to={`/inspections/${ticket.followUpInspectionId}`}>
+          Complete follow-up
+        </Link>
+      ) : null}
     </li>
   )
 }

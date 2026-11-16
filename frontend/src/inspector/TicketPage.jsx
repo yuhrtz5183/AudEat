@@ -185,6 +185,11 @@ export default function TicketPage() {
               unresolved until that inspection is completed.
             </p>
           ) : null}
+          {ticket.followUpInspectionId ? (
+            <Link className="action-link" to={`/inspections/${ticket.followUpInspectionId}`}>
+              Complete follow-up
+            </Link>
+          ) : null}
 
           {ticket.status === 'awaiting_review' ? (
             <ReviewForm ticketId={ticket.id} onReviewed={onReviewed} />
