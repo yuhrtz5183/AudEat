@@ -972,3 +972,102 @@ select {
   width: auto;
   padding: 0 28px;
 }
+
+/* Inspection Detail Requirements & Remediation */
+.result-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+.result-header .ticket-issue {
+  margin: 0;
+  flex: 1;
+}
+
+.badge-compliant {
+  background: #eef5f0;
+  color: var(--forest);
+  border: 1px solid rgba(47, 107, 79, 0.25);
+}
+
+.badge-flagged {
+  background: #fff4f2;
+  color: var(--stamp);
+  border: 1px solid rgba(184, 66, 47, 0.25);
+}
+
+.inspector-comment-box {
+  margin: 10px 0;
+  padding: 10px 14px;
+  background: var(--paper-deep);
+  border-left: 3px solid var(--ink-soft);
+  border-radius: 6px;
+}
+
+.inspector-comment-box .comment-label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--ink-soft);
+  margin-bottom: 3px;
+}
+
+.inspector-comment-box .comment-text {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.remediation-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--moss);
+  border-radius: 8px;
+}
+
+.remediation-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 10px;
+}
+
+.remediation-box-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--forest);
+}
+
+.ticket-action-box {
+  margin-top: 14px;
+  padding: 14px 16px;
+  background: #fff9f8;
+  border: 1px dashed rgba(184, 66, 47, 0.35);
+  border-left: 4px solid var(--stamp);
+  border-radius: 8px;
+}
+
+.ticket-action-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.ticket-action-prompt {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--stamp);
+}
