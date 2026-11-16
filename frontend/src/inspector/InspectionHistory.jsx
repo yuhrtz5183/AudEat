@@ -59,13 +59,12 @@ export default function InspectionHistory() {
                 <time dateTime={inspection.inspectionDate}>{formatDate(inspection.inspectionDate)}</time>
                 {' · '}
                 {violationsText(inspection.violationCount)}
-                {inspection.followUp ? (
-                  <>
-                    {' '}
-                    <span className="badge history-badge">Follow-up inspection</span>
-                  </>
-                ) : null}
               </Link>
+              {inspection.followUp ? (
+                <p>
+                  <span className="badge history-badge">Follow-up inspection</span>
+                </p>
+              ) : null}
               <dl className="ticket-facts">
                 <div>
                   <dt>Inspector</dt>
