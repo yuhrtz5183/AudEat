@@ -13,6 +13,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -72,6 +73,15 @@ public class InspectorController {
       @RequestParam(value = "file", required = false) MultipartFile file,
       @AuthenticationPrincipal Jwt jwt) {
     return inspector.addPhoto(resultId, file, currentUser.require(jwt));
+  }
+
+  @DeleteMapping("/api/results/{resultId}/photos/{photoId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deletePhoto(
+      @PathVariable long resultId,
+      @PathVariable long photoId,
+      @AuthenticationPrincipal Jwt jwt) {
+    inspector.deletePhoto(resultId, photoId, currentUser.require(jwt));
   }
 
   @PostMapping("/api/inspections/{inspectionId}/submit")

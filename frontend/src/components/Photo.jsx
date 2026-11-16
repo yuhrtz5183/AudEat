@@ -5,7 +5,8 @@ import { requestBlob } from '../api/client.js'
 // An <img src> cannot send the bearer token, so the photo is fetched as a Blob
 // and shown through an object URL that is revoked on unmount.
 // Clicking the thumbnail opens a full-size preview modal portalled to body.
-export default function Photo({ id, alt }) {
+// An optional onDelete callback provides a remove button on the thumbnail and inside the modal.
+export default function Photo({ id, alt, onDelete }) {
   const [state, setState] = useState({ status: 'loading', src: null })
   const [open, setOpen] = useState(false)
 
@@ -60,6 +61,18 @@ export default function Photo({ id, alt }) {
             >
               ✕
             </button>
+            {onDelete ? (
+              <button
+                type="button"
+                className="photo-modal-delete-btn"
+                onClick={() => {
+                  setOpen(false)
+                  onDelete()
+                }}
+              >
+                Delete this photo
+              </button>
+            ) : null}
           </div>
         </div>,
         document.body,
@@ -67,7 +80,7 @@ export default function Photo({ id, alt }) {
     : null
 
   return (
-    <>
+    <div className="photo-thumbnail-wrapper">
       <button
         type="button"
         className="photo-thumbnail-btn"
@@ -76,7 +89,21 @@ export default function Photo({ id, alt }) {
       >
         <img src={state.src} alt={alt} />
       </button>
+      {onDelete ? (
+        <button
+          type="button"
+          className="photo-remove-btn"
+          onClick={(event) => {
+            event.stopPropagation()
+            onDelete()
+          }}
+          aria-label={`Delete ${alt}`}
+          title="Delete photo"
+        >
+          ✕
+        </button>
+      ) : null}
       {modal}
-    </>
+    </div>
   )
 }

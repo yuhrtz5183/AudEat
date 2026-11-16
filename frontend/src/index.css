@@ -685,6 +685,11 @@ select {
   list-style: none;
 }
 
+.photo-thumbnail-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
 .photo-thumbnail-btn {
   padding: 0;
   border: none;
@@ -711,6 +716,37 @@ select {
 .photo-thumbnail-btn:focus-visible {
   outline: 2px solid var(--moss);
   outline-offset: 3px;
+}
+
+.photo-remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, background 0.15s ease;
+  z-index: 5;
+}
+
+.photo-remove-btn:hover {
+  transform: scale(1.15);
+  background: #7a1d1d;
+}
+
+.photo-remove-btn:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
 }
 
 .photo-modal-overlay {
@@ -774,6 +810,33 @@ select {
 }
 
 .photo-modal-close:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.photo-modal-delete-btn {
+  position: absolute;
+  bottom: 16px;
+  background: rgba(157, 44, 44, 0.9);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease, transform 0.15s ease;
+  z-index: 10;
+}
+
+.photo-modal-delete-btn:hover {
+  background: var(--danger);
+  transform: scale(1.05);
+}
+
+.photo-modal-delete-btn:focus-visible {
   outline: 2px solid var(--paper);
   outline-offset: 2px;
 }

@@ -115,6 +115,26 @@ export const inspectorRoutes = [
       return { status: 201, body: { id: photo.id } }
     },
   },
+  // AC 2.2: delete an issue photo from a draft inspection
+  {
+    method: 'DELETE',
+    pattern: /^\/api\/results\/(?<resultId>[^/]+)\/photos\/(?<photoId>[^/]+)$/,
+    role: 'inspector',
+    handler({ db, user }, { resultId, photoId }) {
+      const result = findById(db.inspectionResults, resultId)
+      if (!result) throw notFound('Result not found.')
+      const inspection = inspectionOf(db, result)
+      if (inspection.status === 'draft' && !isEditableBy(inspection, user)) {
+        throw notFound('Photo not found.')
+      }
+      if (inspection.status !== 'draft') throw conflict('This inspection has already been submitted.')
+      const photo = findById(db.photos, photoId)
+      if (!photo || photo.resultId !== result.id) throw notFound('Photo not found.')
+      const index = db.photos.findIndex((p) => p.id === photo.id)
+      if (index !== -1) db.photos.splice(index, 1)
+      return { status: 204 }
+    },
+  },
   {
     method: 'POST',
     pattern: /^\/api\/inspections\/(?<inspectionId>[^/]+)\/submit$/,

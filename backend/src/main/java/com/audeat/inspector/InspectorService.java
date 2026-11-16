@@ -161,6 +161,22 @@ public class InspectorService {
     return new CreatedPhotoResponse(photo.getId());
   }
 
+  /**
+   * AC 2.2. Deletes an evidence photo from a flagged issue in the caller's draft inspection.
+   */
+  @Transactional
+  public void deletePhoto(long resultId, long photoId, UserAccount caller) {
+    Photo photo = photos.findById(photoId).orElseThrow(() -> new NotFound("Photo not found."));
+    if (photo.getResult() == null || photo.getResult().getId() != resultId) {
+      throw new NotFound("Photo not found.");
+    }
+    Inspection inspection = requireDraft(photo.getResult().getInspection(), caller, "Photo not found.");
+    if (inspection.getStatus() != InspectionStatus.DRAFT) {
+      throw new Conflict(ALREADY_SUBMITTED);
+    }
+    photos.delete(photo);
+  }
+
   private static byte[] bytes(MultipartFile file) {
     try {
       return file.getBytes();

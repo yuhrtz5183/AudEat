@@ -101,5 +101,10 @@ describe('US 1 Create an inspection', () => {
     // Closing the modal
     await user.click(screen.getByRole('button', { name: 'Close photo preview' }))
     expect(screen.queryByRole('dialog', { name: 'Issue photo' })).not.toBeInTheDocument()
+
+    // Deleting the photo removes it from the checklist
+    await user.click(within(cold).getByRole('button', { name: /Delete Issue photo/ }))
+    expect(within(cold).queryByAltText('Issue photo')).not.toBeInTheDocument()
+    expect(within(cold).queryByLabelText('Evidence photos')).not.toBeInTheDocument()
   })
 })

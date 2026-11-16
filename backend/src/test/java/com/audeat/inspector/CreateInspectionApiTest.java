@@ -3,6 +3,7 @@ package com.audeat.inspector;
 import static com.audeat.TestData.result;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -220,6 +221,17 @@ class CreateInspectionApiTest {
     as(inspector, multipart("/api/results/{id}/photos", resultId).file(textFile))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errors.file").value("Evidence must be a JPEG, PNG or WebP image."));
+
+    // Delete the photo from the flagged issue
+    as(inspector, delete("/api/results/{resultId}/photos/{photoId}", resultId, photoId))
+        .andExpect(status().isNoContent());
+
+    as(inspector, get("/api/inspections/{id}", inspectionId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.results[0].photoIds", hasSize(0)));
+
+    as(inspector, get("/api/photos/{id}", photoId))
+        .andExpect(status().isNotFound());
   }
 
   private ResultActions start(UserAccount user, long storeId) throws Exception {

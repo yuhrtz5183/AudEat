@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ApiError } from '../api/client.js'
-import { submitInspection, updateResult, uploadIssuePhoto } from '../api/inspector.js'
+import { deleteIssuePhoto, submitInspection, updateResult, uploadIssuePhoto } from '../api/inspector.js'
 import Photo from '../components/Photo.jsx'
 
 function lineError(errors, id) {
@@ -73,6 +73,26 @@ export default function ChecklistEditor({ inspection, onSubmitted }) {
       setPhotoErrors((current) => ({ ...current, [line.id]: msg }))
     } finally {
       setUploadingId(null)
+    }
+  }
+
+  async function onDeletePhoto(line, photoId) {
+    setPhotoErrors((current) => ({ ...current, [line.id]: null }))
+    try {
+      await deleteIssuePhoto(line.id, photoId)
+      setLines((current) =>
+        current.map((item) =>
+          item.id === line.id
+            ? { ...item, photoIds: item.photoIds.filter((id) => id !== photoId) }
+            : item,
+        ),
+      )
+    } catch (error) {
+      const msg =
+        error instanceof ApiError && error.body?.message
+          ? error.body.message
+          : "Couldn't delete photo. Please try again."
+      setPhotoErrors((current) => ({ ...current, [line.id]: msg }))
     }
   }
 
@@ -149,7 +169,7 @@ export default function ChecklistEditor({ inspection, onSubmitted }) {
                         <ul className="photo-list" aria-label="Evidence photos">
                           {line.photoIds.map((id) => (
                             <li key={id}>
-                              <Photo id={id} alt="Issue photo" />
+                              <Photo id={id} alt="Issue photo" onDelete={() => onDeletePhoto(line, id)} />
                             </li>
                           ))}
                         </ul>
