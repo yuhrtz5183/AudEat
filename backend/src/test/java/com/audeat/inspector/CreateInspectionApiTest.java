@@ -4,6 +4,7 @@ import static com.audeat.TestData.result;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -19,6 +20,7 @@ import com.audeat.user.UserAccount;
 import com.jayway.jsonpath.JsonPath;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Base64;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,11 +30,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.request.AbstractMockHttpServletRequestBuilder;
 
 /** Starting, marking and submitting an inspection (US 1). */
 @SpringBootTest
@@ -48,6 +51,12 @@ class CreateInspectionApiTest {
   private Store harbor;
   private UserAccount inspector;
   private UserAccount owner;
+
+  private static final byte[] PNG =
+      Base64.getDecoder()
+          .decode(
+              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9aw"
+                  + "AAAABJRU5ErkJggg==");
 
   @BeforeEach
   void cleanDatabase() {
@@ -160,6 +169,59 @@ class CreateInspectionApiTest {
         .andExpect(jsonPath("$.results[0].compliant").value(true));
   }
 
+  @Test
+  @DisplayName("AC 2.1: marking a requirement non-compliant flags it and saves a comment")
+  void flagIssueWithComment() throws Exception {
+    MvcResult created = start(inspector, harbor.getId()).andExpect(status().isCreated()).andReturn();
+    int resultId = JsonPath.read(created.getResponse().getContentAsString(), "$.results[0].id");
+
+    mark(inspector, resultId, false, "Cooler temperature was 48°F.")
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.compliant").value(false))
+        .andExpect(jsonPath("$.comment").value("Cooler temperature was 48°F."))
+        .andExpect(jsonPath("$.resolved").value(false));
+  }
+
+  @Test
+  @DisplayName("AC 2.2: attaches a photo to a flagged issue and serves the photo bytes")
+  void attachPhotoToFlaggedIssue() throws Exception {
+    MvcResult created = start(inspector, harbor.getId()).andExpect(status().isCreated()).andReturn();
+    int resultId = JsonPath.read(created.getResponse().getContentAsString(), "$.results[0].id");
+    int inspectionId = JsonPath.read(created.getResponse().getContentAsString(), "$.id");
+
+    // Cannot attach photo while unflagged (null or compliant)
+    MockMultipartFile pngFile = new MockMultipartFile("file", "issue.png", "image/png", PNG);
+    as(inspector, multipart("/api/results/{id}/photos", resultId).file(pngFile))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.message").value("Only a flagged issue can have photos."));
+
+    mark(inspector, resultId, false, "Thermometer reading.").andExpect(status().isOk());
+
+    MvcResult photoResult =
+        as(inspector, multipart("/api/results/{id}/photos", resultId).file(pngFile))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").isNumber())
+            .andReturn();
+    int photoId = JsonPath.read(photoResult.getResponse().getContentAsString(), "$.id");
+
+    // Inspection detail includes the photo id
+    as(inspector, get("/api/inspections/{id}", inspectionId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.results[0].photoIds[0]").value(photoId));
+
+    // Photo bytes are served via GET /api/photos/{id}
+    as(inspector, get("/api/photos/{id}", photoId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").doesNotExist()); // returns binary image
+
+    // Rejects invalid image types
+    MockMultipartFile textFile =
+        new MockMultipartFile("file", "test.txt", "text/plain", "not an image".getBytes());
+    as(inspector, multipart("/api/results/{id}/photos", resultId).file(textFile))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errors.file").value("Evidence must be a JPEG, PNG or WebP image."));
+  }
+
   private ResultActions start(UserAccount user, long storeId) throws Exception {
     return as(user, post("/api/stores/{id}/inspections", storeId));
   }
@@ -179,7 +241,7 @@ class CreateInspectionApiTest {
     return as(user, post("/api/inspections/{id}/submit", inspectionId));
   }
 
-  private ResultActions as(UserAccount user, MockHttpServletRequestBuilder request)
+  private ResultActions as(UserAccount user, AbstractMockHttpServletRequestBuilder<?> request)
       throws Exception {
     return mvc.perform(request.header(HttpHeaders.AUTHORIZATION, testData.bearer(user)));
   }

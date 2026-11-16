@@ -13,6 +13,9 @@ import com.audeat.inspection.InspectionStatus;
 import com.audeat.inspection.InspectionSummaryResponse;
 import com.audeat.inspection.InspectionViews;
 import com.audeat.inspection.ResultResponse;
+import com.audeat.photo.ImageFiles;
+import com.audeat.photo.Photo;
+import com.audeat.photo.PhotoRepository;
 import com.audeat.remediation.RemediationTicket;
 import com.audeat.remediation.RemediationTicketRepository;
 import com.audeat.remediation.TicketDetailResponse;
@@ -20,15 +23,19 @@ import com.audeat.remediation.TicketViews;
 import com.audeat.store.Store;
 import com.audeat.store.StoreRepository;
 import com.audeat.user.UserAccount;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Inspector inspections (US 1) and creating the remediation ticket for a flagged issue (US 3).
@@ -52,6 +59,7 @@ public class InspectorService {
   private final InspectionRepository inspections;
   private final InspectionResultRepository results;
   private final RemediationTicketRepository tickets;
+  private final PhotoRepository photos;
   private final InspectionViews inspectionViews;
   private final TicketViews ticketViews;
   private final Clock clock;
@@ -62,6 +70,7 @@ public class InspectorService {
       InspectionRepository inspections,
       InspectionResultRepository results,
       RemediationTicketRepository tickets,
+      PhotoRepository photos,
       InspectionViews inspectionViews,
       TicketViews ticketViews,
       Clock clock) {
@@ -70,6 +79,7 @@ public class InspectorService {
     this.inspections = inspections;
     this.results = results;
     this.tickets = tickets;
+    this.photos = photos;
     this.inspectionViews = inspectionViews;
     this.ticketViews = ticketViews;
     this.clock = clock;
@@ -119,6 +129,44 @@ public class InspectorService {
     }
     result.update(request.compliant(), comment.isEmpty() ? null : comment);
     return inspectionViews.result(result);
+  }
+
+  /**
+   * AC 2.2. Attaches an evidence photo to a flagged issue in the caller's draft inspection.
+   */
+  @Transactional
+  public CreatedPhotoResponse addPhoto(long resultId, MultipartFile file, UserAccount caller) {
+    if (file == null || file.isEmpty()) {
+      throw new InvalidFields(Map.of("file", "A photo is required."));
+    }
+    InspectionResult result =
+        results.findById(resultId).orElseThrow(() -> new NotFound("Result not found."));
+    Inspection inspection = requireDraft(result.getInspection(), caller, "Result not found.");
+    if (inspection.getStatus() != InspectionStatus.DRAFT) {
+      throw new Conflict(ALREADY_SUBMITTED);
+    }
+    if (!result.isFlagged()) {
+      throw new Conflict("Only a flagged issue can have photos.");
+    }
+    if (photos.countByResultId(result.getId()) >= ImageFiles.MAX_PHOTOS) {
+      throw new InvalidFields(Map.of("file", "Upload at most " + ImageFiles.MAX_PHOTOS + " files."));
+    }
+    byte[] data = bytes(file);
+    Optional<String> contentType = ImageFiles.contentType(data);
+    if (contentType.isEmpty()) {
+      throw new InvalidFields(Map.of("file", "Evidence must be a JPEG, PNG or WebP image."));
+    }
+    Instant now = clock.instant();
+    Photo photo = photos.save(Photo.ofResult(result, contentType.get(), data, now));
+    return new CreatedPhotoResponse(photo.getId());
+  }
+
+  private static byte[] bytes(MultipartFile file) {
+    try {
+      return file.getBytes();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 
   /**

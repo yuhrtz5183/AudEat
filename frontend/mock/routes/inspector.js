@@ -72,6 +72,49 @@ export const inspectorRoutes = [
       return { status: 200, body: resultResponse(db, result, today) }
     },
   },
+  // AC 2.2: attach an issue photo to a flagged issue
+  {
+    method: 'POST',
+    pattern: /^\/api\/results\/(?<resultId>[^/]+)\/photos$/,
+    role: 'inspector',
+    handler({ db, user }, { resultId }, body) {
+      const result = findById(db.inspectionResults, resultId)
+      if (!result) throw notFound('Result not found.')
+      const inspection = inspectionOf(db, result)
+      if (inspection.status === 'draft' && !isEditableBy(inspection, user)) {
+        throw notFound('Result not found.')
+      }
+      if (inspection.status !== 'draft') throw conflict('This inspection has already been submitted.')
+      if (result.compliant !== false) {
+        throw conflict('Only a flagged issue can have photos.')
+      }
+      const form = typeof body?.get === 'function' ? body : null
+      const file = form?.get('file')
+      const isFile = typeof file === 'object' && file !== null && 'size' in file
+      if (!isFile || file.size === 0) {
+        throw new HttpError(400, { errors: { file: 'A photo is required.' } })
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        throw new HttpError(413, { message: 'Each file must be 5 MB or smaller.' })
+      }
+      const existing = db.photos.filter((p) => p.resultId === result.id)
+      if (existing.length >= 5) {
+        throw new HttpError(400, { errors: { file: 'Upload at most 5 files.' } })
+      }
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp']
+      if (!validTypes.includes(file.type)) {
+        throw new HttpError(400, { errors: { file: 'Evidence must be a JPEG, PNG or WebP image.' } })
+      }
+      const photo = db.insert('photos', {
+        resultId: result.id,
+        submissionId: null,
+        contentType: file.type,
+        blob: file,
+        createdAt: nowInstant(),
+      })
+      return { status: 201, body: { id: photo.id } }
+    },
+  },
   {
     method: 'POST',
     pattern: /^\/api\/inspections\/(?<inspectionId>[^/]+)\/submit$/,
