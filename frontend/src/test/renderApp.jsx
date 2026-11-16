@@ -39,6 +39,9 @@ export function stubApi({ override, today } = {}) {
         headers: { 'Content-Type': result.blob.type },
       })
     }
+    if (result.status === 204) {
+      return new Response(null, { status: 204 })
+    }
     return Response.json(result.body, { status: result.status })
   })
   vi.stubGlobal('fetch', fetch)

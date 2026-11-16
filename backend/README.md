@@ -75,7 +75,7 @@ store id: they always use the signed-in owner's store.
 | `POST /api/stores/{storeId}/inspections` | Inspector | Start, or resume, the caller's draft (AC 1.1) | 201 or 200 `InspectionDetailResponse`; 404 `Store not found.` | planned |
 | `GET /api/inspections/{id}` | Inspector | One inspection (AC 2.2, 7.3, 8.2) | 200 `InspectionDetailResponse`; 404 `Inspection not found.` | planned |
 | `PUT /api/results/{resultId}` | Inspector | Mark a requirement `{compliant, comment}` (AC 1.2, 1.3, 2.1) | 200 `ResultResponse`; 400; 404 `Result not found.`; 409 | planned |
-| `POST /api/results/{resultId}/photos` | Inspector | Add an issue photo; multipart `file` (AC 2.2) | 201 `{id}`; 400; 404; 409; 413 | planned |
+| `POST /api/results/{resultId}/photos` | Inspector | Add an issue photo; multipart `file` (AC 2.2) | 201 `{id}`; 400; 404; 409; 413 | done |
 | `POST /api/inspections/{id}/submit` | Inspector | Submit a draft or a follow-up (AC 1.2, 1.3, 7.3) | 200 `InspectionDetailResponse`; 400 `errors["results.{id}"]`; 404; 409 | planned |
 | `GET /api/stores/{storeId}/inspections` | Inspector | A store's inspection history (US 8) | 200 `[InspectionSummaryResponse]`; 404 `Store not found.` | planned |
 | `POST /api/results/{resultId}/ticket` | Inspector | Create a ticket `{requiredRemediation, deadline}` (US 3) | 201 `TicketDetailResponse`; 400 `errors.deadline` `A deadline is required.`; 404; 409 | planned |

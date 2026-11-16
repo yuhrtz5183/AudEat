@@ -13,13 +13,17 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /** Inspector inspections (US 1) and remediation-ticket creation (US 3). */
@@ -60,6 +64,24 @@ public class InspectorController {
       @RequestBody UpdateResultRequest request,
       @AuthenticationPrincipal Jwt jwt) {
     return inspector.updateResult(resultId, request, currentUser.require(jwt));
+  }
+
+  @PostMapping("/api/results/{resultId}/photos")
+  @ResponseStatus(HttpStatus.CREATED)
+  public CreatedPhotoResponse addPhoto(
+      @PathVariable long resultId,
+      @RequestParam(value = "file", required = false) MultipartFile file,
+      @AuthenticationPrincipal Jwt jwt) {
+    return inspector.addPhoto(resultId, file, currentUser.require(jwt));
+  }
+
+  @DeleteMapping("/api/results/{resultId}/photos/{photoId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deletePhoto(
+      @PathVariable long resultId,
+      @PathVariable long photoId,
+      @AuthenticationPrincipal Jwt jwt) {
+    inspector.deletePhoto(resultId, photoId, currentUser.require(jwt));
   }
 
   @PostMapping("/api/inspections/{inspectionId}/submit")

@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router'
 import { fetchInspection } from '../api/inspector.js'
 import { HomeShell } from '../home/Home.jsx'
 import { formatDate } from '../owner/dates.js'
+import Photo from '../components/Photo.jsx'
 import ChecklistEditor from './ChecklistEditor.jsx'
 import CreateTicketForm from './CreateTicketForm.jsx'
 
@@ -86,6 +87,15 @@ export default function InspectionPage() {
                 <p className="ticket-issue">{result.requirement}</p>
                 <p className="lede">{mark(result)}</p>
                 {result.comment ? <p>{result.comment}</p> : null}
+                {result.photoIds && result.photoIds.length > 0 ? (
+                  <ul className="photo-list" aria-label="Issue photos">
+                    {result.photoIds.map((id) => (
+                      <li key={id}>
+                        <Photo id={id} alt="Issue photo" />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
                 {result.ticket ? (
                   <p className="lede">
                     Ticket due{' '}

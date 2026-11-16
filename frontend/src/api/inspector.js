@@ -29,6 +29,11 @@ export function uploadIssuePhoto(resultId, file) {
   return request(`/api/results/${resultId}/photos`, { method: 'POST', body })
 }
 
+/** Deletes one photo from a draft inspection's flagged issue. */
+export function deleteIssuePhoto(resultId, photoId) {
+  return request(`/api/results/${resultId}/photos/${photoId}`, { method: 'DELETE' })
+}
+
 export function submitInspection(id) {
   return request(`/api/inspections/${id}/submit`, { method: 'POST' })
 }

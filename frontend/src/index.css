@@ -685,13 +685,169 @@ select {
   list-style: none;
 }
 
-.photo-list img {
+.photo-thumbnail-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.photo-thumbnail-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  display: block;
+  border-radius: 10px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.photo-thumbnail-btn img {
   display: block;
   width: 160px;
   height: 120px;
   object-fit: cover;
   border: 1px solid var(--line);
   border-radius: 10px;
+}
+
+.photo-thumbnail-btn:hover {
+  transform: scale(1.02);
+}
+
+.photo-thumbnail-btn:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: 3px;
+}
+
+.photo-remove-btn {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, background 0.15s ease;
+  z-index: 5;
+}
+
+.photo-remove-btn:hover {
+  transform: scale(1.15);
+  background: #7a1d1d;
+}
+
+.photo-remove-btn:focus-visible {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
+.photo-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 10, 10, 0.88);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 24px;
+  cursor: zoom-out;
+  animation: photoFadeIn 0.15s ease-out;
+}
+
+.photo-modal-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(88vw, 800px);
+  height: min(80vh, 560px);
+  cursor: default;
+}
+
+.photo-modal-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+  background: #111;
+}
+
+.photo-modal-close {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  background: #1c1916;
+  color: #fff;
+  font-size: 1.15rem;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  transition: background 0.15s ease, transform 0.15s ease;
+  z-index: 10;
+}
+
+.photo-modal-close:hover {
+  background: var(--stamp);
+  transform: scale(1.1);
+}
+
+.photo-modal-close:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+.photo-modal-delete-btn {
+  position: absolute;
+  bottom: 16px;
+  background: rgba(157, 44, 44, 0.9);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 8px 20px;
+  border-radius: 20px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  transition: background 0.15s ease, transform 0.15s ease;
+  z-index: 10;
+}
+
+.photo-modal-delete-btn:hover {
+  background: var(--danger);
+  transform: scale(1.05);
+}
+
+.photo-modal-delete-btn:focus-visible {
+  outline: 2px solid var(--paper);
+  outline-offset: 2px;
+}
+
+@keyframes photoFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .ticket-title:focus-visible {
