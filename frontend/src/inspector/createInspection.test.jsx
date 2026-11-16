@@ -93,5 +93,13 @@ describe('US 1 Create an inspection', () => {
 
     expect(await within(cold).findByLabelText('Evidence photos')).toBeInTheDocument()
     expect(within(cold).getByAltText('Issue photo')).toBeInTheDocument()
+
+    // Clicking the thumbnail opens the full-size preview modal
+    await user.click(within(cold).getByRole('button', { name: /View full photo/ }))
+    expect(await screen.findByRole('dialog', { name: 'Issue photo' })).toBeInTheDocument()
+
+    // Closing the modal
+    await user.click(screen.getByRole('button', { name: 'Close photo preview' }))
+    expect(screen.queryByRole('dialog', { name: 'Issue photo' })).not.toBeInTheDocument()
   })
 })
