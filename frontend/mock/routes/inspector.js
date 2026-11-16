@@ -9,7 +9,11 @@ import {
   isEditableBy,
   notFound,
   nowInstant,
+  recordFollowUpResult,
+  resultResponse,
+  startRegular,
   storeHistory,
+  submitInspection,
   ticketDetail,
   ticketSummary,
   ticketsWithStatus,
@@ -25,6 +29,73 @@ export const inspectorRoutes = [
       const inspection = findById(db.inspections, inspectionId)
       if (!inspection || (inspection.status === 'draft' && !isEditableBy(inspection, user))) {
         throw notFound('Inspection not found.')
+      }
+      return { status: 200, body: inspectionDetail(db, inspection, today) }
+    },
+  },
+  // US 1: one regular draft per inspector per store. 201 when created, 200 when resumed.
+  {
+    method: 'POST',
+    pattern: /^\/api\/stores\/(?<storeId>[^/]+)\/inspections$/,
+    role: 'inspector',
+    handler({ db, user, today }, { storeId }) {
+      const store = findById(db.stores, storeId)
+      if (!store) throw notFound('Store not found.')
+      const existing = db.inspections.find(
+        (inspection) =>
+          String(inspection.storeId) === String(store.id) &&
+          inspection.inspectorId === user.id &&
+          inspection.status === 'draft' &&
+          inspection.followUpOfResultId === null,
+      )
+      if (existing) return { status: 200, body: inspectionDetail(db, existing, today) }
+      const inspection = startRegular(db, store, user, today, nowInstant())
+      return { status: 201, body: inspectionDetail(db, inspection, today) }
+    },
+  },
+  {
+    method: 'PUT',
+    pattern: /^\/api\/results\/(?<resultId>[^/]+)$/,
+    role: 'inspector',
+    handler({ db, user, today }, { resultId }, body) {
+      const result = findById(db.inspectionResults, resultId)
+      if (!result) throw notFound('Result not found.')
+      const inspection = inspectionOf(db, result)
+      if (inspection.status === 'draft' && !isEditableBy(inspection, user)) {
+        throw notFound('Result not found.')
+      }
+      if (inspection.status !== 'draft') throw conflict('This inspection has already been submitted.')
+      const comment = typeof body?.comment === 'string' ? body.comment.trim() : ''
+      if (comment.length > 1000) throw new HttpError(400, { errors: { comment: 'Use 1000 characters or fewer.' } })
+      result.compliant = body?.compliant === true ? true : body?.compliant === false ? false : null
+      result.comment = comment || null
+      return { status: 200, body: resultResponse(db, result, today) }
+    },
+  },
+  {
+    method: 'POST',
+    pattern: /^\/api\/inspections\/(?<inspectionId>[^/]+)\/submit$/,
+    role: 'inspector',
+    handler({ db, user, today }, { inspectionId }) {
+      const inspection = findById(db.inspections, inspectionId)
+      if (!inspection || (inspection.status === 'draft' && !isEditableBy(inspection, user))) {
+        throw notFound('Inspection not found.')
+      }
+      if (inspection.status !== 'draft') throw conflict('This inspection has already been submitted.')
+      const lines = db.inspectionResults.filter((result) => result.inspectionId === inspection.id)
+      const errors = {}
+      for (const result of lines) {
+        if (result.compliant !== true && result.compliant !== false) {
+          errors[`results.${result.id}`] = 'Mark this requirement.'
+        }
+      }
+      if (Object.keys(errors).length > 0) throw new HttpError(400, { errors })
+      const now = nowInstant()
+      submitInspection(inspection, user, today, now)
+      if (inspection.followUpOfResultId !== null) {
+        const ticket = db.remediationTickets.find((item) => item.resultId === inspection.followUpOfResultId)
+        if (!ticket) throw conflict('This ticket is not waiting for a follow-up inspection.')
+        recordFollowUpResult(ticket, lines[0].compliant, now)
       }
       return { status: 200, body: inspectionDetail(db, inspection, today) }
     },

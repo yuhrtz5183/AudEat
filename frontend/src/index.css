@@ -765,6 +765,19 @@ select {
 }
 
 /* Owner inspection history (US 9) */
+.mark-choices {
+  display: flex;
+  gap: 18px;
+  margin: 10px 0 4px;
+}
+
+.mark-choices label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+
 .history-badge {
   margin-left: 10px;
   font-weight: 500;

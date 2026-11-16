@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useLocation, useParams } from 'react-router'
 import { fetchInspection } from '../api/inspector.js'
 import { HomeShell } from '../home/Home.jsx'
 import { formatDate } from '../owner/dates.js'
+import ChecklistEditor from './ChecklistEditor.jsx'
 import CreateTicketForm from './CreateTicketForm.jsx'
 
 function useInspection(inspectionId) {
@@ -43,8 +44,12 @@ function mark(result) {
 // A submitted inspection's checklist. A flagged issue without a ticket can get one (US 3).
 export default function InspectionPage() {
   const { inspectionId } = useParams()
-  const { status, inspection, retry } = useInspection(inspectionId)
+  const location = useLocation()
+  const { status, inspection: loaded, retry } = useInspection(inspectionId)
+  const [finished, setFinished] = useState(null)
+  const inspection = finished ?? loaded
   const [createdId, setCreatedId] = useState(null)
+  const justSubmitted = finished !== null || location.state?.submitted === true
 
   return (
     <HomeShell title={inspection?.storeName ?? (status === 'notFound' ? 'Inspection not found' : 'Inspection')}>
@@ -65,9 +70,16 @@ export default function InspectionPage() {
             {' · '}
             {inspection.inspectorName}
           </p>
+          {justSubmitted ? (
+            <p className="notice" role="status">Inspection submitted.</p>
+          ) : null}
           {createdId ? (
             <p className="notice" role="status">Ticket created. The store owner can see it.</p>
           ) : null}
+          {inspection.status === 'draft' ? (
+            <ChecklistEditor inspection={inspection} onSubmitted={setFinished} />
+          ) : null}
+          {inspection.status === 'draft' ? null : (
           <ul className="ticket-list" aria-label="Checklist">
             {inspection.results.map((result) => (
               <li key={result.id} className="ticket-card">
@@ -94,6 +106,7 @@ export default function InspectionPage() {
               </li>
             ))}
           </ul>
+          )}
         </>
       ) : null}
       <Link className="text-button back-link" to={inspection ? `/stores/${inspection.storeId}/inspections` : '/stores'}>

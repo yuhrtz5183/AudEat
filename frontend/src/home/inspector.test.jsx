@@ -69,7 +69,8 @@ describe('inspector store selection (US 14)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/stores/2/inspections/new')
     expect(screen.getByRole('heading', { name: 'New inspection' })).toBeInTheDocument()
     expect(screen.getByText('Harbor Noodle House')).toBeInTheDocument()
-    expect(screen.getByText('Inspection creation is not available yet.')).toBeInTheDocument()
+    expect(await screen.findByText(/Cold food is held/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit inspection' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('link', { name: 'Back to store' }))
     await user.click(screen.getByRole('link', { name: 'View inspection history' }))
