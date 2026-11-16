@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -213,7 +214,8 @@ class CreateInspectionApiTest {
     // Photo bytes are served via GET /api/photos/{id}
     as(inspector, get("/api/photos/{id}", photoId))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$").doesNotExist()); // returns binary image
+        .andExpect(content().contentType("image/png"))
+        .andExpect(content().bytes(PNG));
 
     // Rejects invalid image types
     MockMultipartFile textFile =

@@ -48,6 +48,19 @@ export default function ChecklistEditor({ inspection, onSubmitted }) {
     setLines((current) => current.map((item) => (item.id === line.id ? { ...item, comment } : item)))
   }
 
+  async function onCommentBlur(line) {
+    if (line.compliant === null || line.compliant === undefined) return
+    try {
+      await persist(line, line.compliant, line.comment)
+    } catch (error) {
+      setFormError(
+        error instanceof ApiError && error.body?.message
+          ? error.body.message
+          : "Couldn't save comment. Please try again.",
+      )
+    }
+  }
+
   async function onUploadPhoto(line, event) {
     const file = event.target.files?.[0]
     if (!file) return
@@ -159,6 +172,7 @@ export default function ChecklistEditor({ inspection, onSubmitted }) {
                     id={`comment-${line.id}`}
                     value={line.comment ?? ''}
                     onChange={(event) => editComment(line, event.target.value)}
+                    onBlur={() => onCommentBlur(line)}
                   />
                 </div>
                 {line.compliant === false ? (

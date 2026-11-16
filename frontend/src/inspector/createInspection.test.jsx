@@ -64,13 +64,23 @@ describe('US 1 Create an inspection', () => {
   })
 
   it('AC 2.1: marking a requirement non-compliant flags it and allows entering a comment', async () => {
-    const { user } = startHarbor()
+    const { user, fetch } = startHarbor()
     await openDraft(user)
 
     const cold = screen.getByText(COLD).closest('li')
     await user.click(within(cold).getByRole('radio', { name: 'Flagged' }))
     const commentField = within(cold).getByLabelText('Comment')
     await user.type(commentField, 'Walk-in cooler read 48°F.')
+    await user.tab()
+    await waitFor(() => {
+      expect(
+        fetch.mock.calls.some(
+          ([, init]) =>
+            init?.method === 'PUT' &&
+            init?.body?.includes('Walk-in cooler read 48°F.'),
+        ),
+      ).toBe(true)
+    })
 
     await user.click(screen.getByRole('link', { name: 'Back to store' }))
     await openDraft(user)
@@ -104,7 +114,9 @@ describe('US 1 Create an inspection', () => {
 
     // Deleting the photo removes it from the checklist
     await user.click(within(cold).getByRole('button', { name: /Delete Issue photo/ }))
-    expect(within(cold).queryByAltText('Issue photo')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(within(cold).queryByAltText('Issue photo')).not.toBeInTheDocument()
+    })
     expect(within(cold).queryByLabelText('Evidence photos')).not.toBeInTheDocument()
   })
 })
