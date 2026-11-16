@@ -4,6 +4,8 @@ import { fetchInspection } from '../api/inspector.js'
 import { HomeShell } from '../home/Home.jsx'
 import { formatDate } from '../owner/dates.js'
 import Photo from '../components/Photo.jsx'
+import { daysText } from '../remediation/labels.js'
+import { TicketStatus } from '../owner/TicketStatus.jsx'
 import ChecklistEditor from './ChecklistEditor.jsx'
 import CreateTicketForm from './CreateTicketForm.jsx'
 
@@ -97,12 +99,17 @@ export default function InspectionPage() {
                   </ul>
                 ) : null}
                 {result.ticket ? (
-                  <p className="lede">
-                    Ticket due{' '}
-                    <time dateTime={result.ticket.deadline}>{formatDate(result.ticket.deadline)}</time>
-                    {': '}
-                    {result.ticket.requiredRemediation}
-                  </p>
+                  <div className="ticket-detail">
+                    <p>
+                      <TicketStatus ticket={result.ticket} />
+                    </p>
+                    <p className="lede">
+                      Ticket due{' '}
+                      <time dateTime={result.ticket.deadline}>{formatDate(result.ticket.deadline)}</time>
+                      {': '}
+                      {result.ticket.requiredRemediation}
+                    </p>
+                  </div>
                 ) : null}
                 {result.compliant === false && !result.ticket ? (
                   <CreateTicketForm
